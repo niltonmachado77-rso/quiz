@@ -1,0 +1,1998 @@
+</textarea>
+                </div>
+
+                <div class="stats-card">
+                    <h4>📊 Estatísticas do Sistema</h4>
+                    <div id="systemStats">
+                        <p>👥 Usuários: <span id="totalUsers">0</span></p>
+                        <p>📝 Quizzes realizados: <span id="totalQuizzes">0</span></p>
+                        <p>❓ Total de questões: <span id="totalQuestions">0</span></p>
+                        <p>📚 Matérias ativas: <span id="totalSubjects">0</span></p>
+                    </div>
+                    <button class="btn btn-secondary" onclick="updateStats()" style="margin-top: 1rem; font-size: 0.9rem;">🔄 Atualizar</button>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 2rem;">
+                <button class="btn btn-success" onclick="generateSampleFile()">📥 Baixar Exemplos</button>
+                <button class="btn btn-secondary" onclick="showDetailedStats()">📈 Relatório Detalhado</button>
+                <button class="btn" onclick="exportData()">💾 Exportar Dados</button>
+            </div>
+
+            <div id="uploadStatus" style="margin-top: 2rem;"></div>
+        </div>
+    </div>
+
+    <!-- Botão Flutuante para Download do App -->
+    <div class="floating-download" onclick="downloadApp()" title="Instalar App">
+        📱
+    </div>
+
+    <!-- Versão do Sistema -->
+    <div class="version-info">
+        v2.0.0 | Quiz LP
+    </div>
+
+    <script>
+        // ==========================================
+        // CONFIGURAÇÕES E DADOS GLOBAIS
+        // ==========================================
+        
+        let currentUser = null;
+        let currentQuiz = null;
+        let currentQuestion = 0;
+        let questionStartTime = 0;
+        let timerInterval = null;
+        let attempts = 0;
+        let score = 0;
+        let selectedDifficulty = null;
+        let selectedSubject = null;
+        let totalTime = 0;
+        let correctAnswers = 0;
+
+        // Base de dados de questões (expandida)
+        let questionsDatabase = {
+            ortografia: {
+                '6ano': [
+                    {
+                        pergunta: "Qual é a grafia correta da palavra?",
+                        respostas: ["exceção", "excessão", "exseção", "excesão", "exeção", "eceção"],
+                        correta: 0,
+                        dificuldade: "medium"
+                    },
+                    {
+                        pergunta: "Complete: Ele _____ ontem à escola.",
+                        respostas: ["veio", "veo", "veiu", "veiou", "vio", "viu"],
+                        correta: 0,
+                        dificuldade: "easy"
+                    },
+                    {
+                        pergunta: "Qual palavra está escrita corretamente?",
+                        respostas: ["análise", "analise", "análizi", "analize", "analizê", "analisê"],
+                        correta: 0,
+                        dificuldade: "hard"
+                    }
+                ],
+                '7ano': [
+                    {
+                        pergunta: "Qual é a forma correta?",
+                        respostas: ["privilégio", "previlégio", "privilêgio", "previlegio", "privilegio", "previlêgio"],
+                        correta: 0,
+                        dificuldade: "medium"
+                    }
+                ]
+            },
+            morfologia: {
+                '6ano': [
+                    {
+                        pergunta: "Qual é o plural correto de 'lápis'?",
+                        respostas: ["lápis", "lapis", "lápises", "lápisses", "lapiss", "lapizes"],
+                        correta: 0,
+                        dificuldade: "easy"
+                    },
+                    {
+                        pergunta: "Qual é o feminino de 'galo'?",
+                        respostas: ["galinha", "gala", "galia", "galina", "galona", "galesa"],
+                        correta: 0,
+                        dificuldade: "easy"
+                    }
+                ]
+            },
+            redacao: {
+                '6ano': [
+                    {
+                        pergunta: "Qual conectivo indica oposição?",
+                        respostas: ["mas", "e", "então", "porque", "quando", "onde"],
+                        correta: 0,
+                        dificuldade: "medium"
+                    }
+                ]
+            }
+        };
+
+        let userStats = JSON.parse(localStorage.getItem('userStats') || '{}');
+        let lastUploadDate = localStorage.getItem('lastUploadDate');
+
+        // ==========================================
+        // FUNÇÕES DE AUTENTICAÇÃO
+        // ==========================================
+        
+        function loginStudent() {
+            const name = document.getElementById('studentName').value.trim();
+            const series = document.getElementById('studentSeries').value;
+            
+            if (!name || !series) {
+                showAlert('⚠️ Por favor, preencha todos os campos.', 'warning');
+                return;
+            }
+
+            if (name.length < 2) {
+                showAlert('⚠️ Nome deve ter pelo menos 2 caracteres.', 'warning');
+                return;
+            }
+
+            currentUser = {
+                name: name,
+                series: series,
+                type: 'student',
+                loginTime: new Date().toISOString()
+            };
+
+            document.getElementById('welcomeStudent').innerHTML = `👋 Olá, <strong>${name}</strong>!`;
+            
+            checkForNewQuizzes();
+            showScreen('studentScreen');
+            loadUserScore();
+            
+            showAlert(`🎉 Bem-vindo, ${name}! Escolha uma matéria para começar.`, 'success');
+        }
+
+        function loginAdmin() {
+            const password = document.getElementById('adminPassword').value;
+            
+            if (password !== 'admin123') {
+                showAlert('❌ Senha incorreta. Tente: admin123', 'danger');
+                return;
+            }
+
+            currentUser = {
+                name: 'Admin',
+                type: 'admin',
+                loginTime: new Date().toISOString()
+            };
+
+            showScreen('adminScreen');
+            updateStats();
+            showAlert('👨‍💼 Login administrativo realizado com sucesso!', 'success');
+        }
+
+        function logout() {
+            if (timerInterval) clearInterval(timerInterval);
+            
+            currentUser = null;
+            selectedDifficulty = null;
+            selectedSubject = null;
+            
+            showScreen('loginScreen');
+            resetForm();
+            
+            showAlert('👋 Logout realizado com sucesso!', 'info');
+        }
+
+        function resetForm() {
+            document.getElementById('studentName').value = '';
+            document.getElementById('studentSeries').value = '';
+            document.getElementById('adminPassword').value = '';
+            document.getElementById('subjectSelect').value = '';
+            document.querySelectorAll('.difficulty-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            document.getElementById('startQuizBtn').disabled = true;
+        }
+
+        // ==========================================
+        // FUNÇÕES DE NAVEGAÇÃO E UI
+        // ==========================================
+        
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        function showAlert(message, type = 'info') {
+            const colors = {
+                success: '#d4edda',
+                danger: '#f8d7da',
+                warning: '#fff3cd',
+                info: '#d1ecf1'
+            };
+
+            const alert = document.createElement('div');
+            alert.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${colors[type]};
+                color: #333;
+                padding: 1rem 1.5rem;
+                border-radius: 10px;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                z-index: 10000;
+                max-width: 300px;
+                animation: slideInRight 0.5s ease;
+            `;
+            alert.innerHTML = message;
+
+            document.body.appendChild(alert);
+
+            setTimeout(() => {
+                alert.style.animation = 'slideOutRight 0.5s ease';
+                setTimeout(() => document.body.removeChild(alert), 500);
+            }, 4000);
+        }
+
+        // ==========================================
+        // FUNÇÕES DO QUIZ
+        // ==========================================
+        
+        function selectDifficulty(difficulty) {
+            selectedDifficulty = difficulty;
+            document.querySelectorAll('.difficulty-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            document.querySelector(`.difficulty-${difficulty}`).classList.add('selected');
+            
+            updateStartButton();
+        }
+
+        function updateStartButton() {
+            const subject = document.getElementById('subjectSelect').value;
+            const btn = document.getElementById('startQuizBtn');
+            
+            if (subject && selectedDifficulty) {
+                btn.disabled = false;
+                selectedSubject = subject;
+                btn.style.transform = 'scale(1.05)';
+                btn.innerHTML = '🚀 Começar Agora!';
+            } else {
+                btn.disabled = true;
+                btn.style.transform = 'scale(1)';
+                btn.innerHTML = '🚀 Iniciar Quiz';
+            }
+        }
+
+        function startQuiz() {
+            if (!selectedSubject || !selectedDifficulty) {
+                showAlert('⚠️ Selecione uma matéria e dificuldade.', 'warning');
+                return;
+            }
+
+            const questions = getQuestionsForUser();
+            
+            if (!questions || questions.length === 0) {
+                showAlert('📚 Não há questões disponíveis para esta combinação. Tente outra matéria!', 'warning');
+                return;
+            }
+
+            currentQuiz = {
+                questions: shuffleArray([...questions]).slice(0, 10),
+                difficulty: selectedDifficulty,
+                subject: selectedSubject,
+                startTime: Date.now()
+            };
+
+            currentQuestion = 0;
+            score = 0;
+            totalTime = 0;
+            correctAnswers = 0;
+            
+            document.getElementById('quizScore').textContent = score;
+            showScreen('quizScreen');
+            showQuestion();
+            
+            showAlert('🎯 Quiz iniciado! Boa sorte!', 'success');
+        }
+
+        function getQuestionsForUser() {
+            const db = questionsDatabase[selectedSubject];
+            if (!db || !db[currentUser.series]) {
+                return [];
+            }
+            return db[currentUser.series];
+        }
+
+        function showQuestion() {
+            if (currentQuestion >= currentQuiz.questions.length) {
+                endQuiz();
+                return;
+            }
+
+            const question = currentQuiz.questions[currentQuestion];
+            attempts = 0;
+            questionStartTime = Date.now();
+
+            document.getElementById('questionNumber').textContent = currentQuestion + 1;
+            document.getElementById('questionText').textContent = question.pergunta;
+            document.getElementById('progressFill').style.width = 
+                `${((currentQuestion + 1) / currentQuiz.questions.length) * 100}%`;
+
+            // Preparar respostas
+            const correctAnswer = question.respostas[question.correta];
+            const wrongAnswers = question.respostas.filter((_, i) => i !== question.correta);
+            const randomWrong = shuffleArray(wrongAnswers).slice(0, 4);
+            const allAnswers = shuffleArray([correctAnswer, ...randomWrong]);
+            const correctIndex = allAnswers.indexOf(correctAnswer);
+
+            const container = document.getElementById('answersContainer');
+            container.innerHTML = '';
+
+            allAnswers.forEach((answer, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'answer-btn';
+                btn.textContent = `${index + 1}. ${answer}`;
+                btn.onclick = () => selectAnswer(index, correctIndex);
+                btn.id = `answer-${index}`;
+                container.appendChild(btn);
+            });
+
+            startTimer();
+        }
+
+        function startTimer() {
+            const timeLimit = {
+                'easy': 30,
+                'medium': 20,
+                'hard': 10
+            }[selectedDifficulty];
+
+            let timeLeft = timeLimit;
+            document.getElementById('timer').textContent = timeLeft;
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                document.getElementById('timer').textContent = timeLeft;
+
+                // Mudança de cor conforme o tempo
+                const timerElement = document.getElementById('timer');
+                if (timeLeft <= 5) {
+                    timerElement.style.color = '#dc3545';
+                    timerElement.style.animation = 'pulse 1s infinite';
+                } else if (timeLeft <= 10) {
+                    timerElement.style.color = '#ffc107';
+                }
+
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    selectAnswer(-1, -1); // Timeout
+                }
+            }, 1000);
+        }
+
+        function selectAnswer(selectedIndex, correctIndex) {
+            clearInterval(timerInterval);
+            attempts++;
+
+            const answerBtns = document.querySelectorAll('.answer-btn');
+            const timeSpent = (Date.now() - questionStartTime) / 1000;
+            totalTime += timeSpent;
+            
+            if (selectedIndex === correctIndex) {
+                // Resposta correta
+                answerBtns[selectedIndex].classList.add('correct');
+                correctAnswers++;
+                
+                const points = calculatePoints(timeSpent, attempts, selectedDifficulty);
+                score += points;
+                document.getElementById('quizScore').textContent = score;
+
+                showAlert(`✅ Correto! +${points} pontos`, 'success');
+
+                setTimeout(() => {
+                    currentQuestion++;
+                    showQuestion();
+                }, 1500);
+            } else {
+                // Resposta errada
+                if (selectedIndex >= 0) {
+                    answerBtns[selectedIndex].classList.add('incorrect');
+                }
+                
+                if (attempts >= 4 || selectedIndex === -1) {
+                    // Mostrar resposta correta após 4 tentativas ou timeout
+                    answerBtns[correctIndex].classList.add('correct');
+                    
+                    if (selectedIndex === -1) {
+                        showAlert('⏰ Tempo esgotado!', 'warning');
+                    } else {
+                        showAlert(`❌ Resposta correta: ${answerBtns[correctIndex].textContent}`, 'danger');
+                    }
+                    
+                    setTimeout(() => {
+                        currentQuestion++;
+                        showQuestion();
+                    }, 2500);
+                } else {
+                    showAlert(`❌ Tente novamente! (${attempts}/4)`, 'warning');
+                    setTimeout(() => {
+                        if (answerBtns[selectedIndex]) {
+                            answerBtns[selectedIndex].classList.remove('incorrect');
+                        }
+                    }, 1000);
+                }
+            }
+        }
+
+        function calculatePoints(timeSpent, attempts, difficulty) {
+            const difficultyMultiplier = {
+                'easy': 1,
+                'medium': 1.5,
+                'hard': 2
+            };
+
+            const basePoints = 100 * difficultyMultiplier[difficulty];
+            const timeBonus = Math.max(0, (30 - timeSpent) * 3);
+            const attemptPenalty = (attempts - 1) * 25;
+            
+            return Math.max(10, Math.round(basePoints + timeBonus - attemptPenalty));
+        }
+
+        function endQuiz() {
+            clearInterval(timerInterval);
+            
+            // Calcular estatísticas
+            const accuracy = Math.round((correctAnswers / currentQuiz.questions.length) * 100);
+            const avgTime = Math.round(totalTime / currentQuiz.questions.length);
+            
+            // Salvar estatísticas
+            saveUserStats();
+            
+            // Mostrar resultado
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('resultStats').innerHTML = `
+                📊 Acertos: ${correctAnswers}/${currentQuiz.questions.length} (${accuracy}%)<br>
+                ⏱️ Tempo médio: ${avgTime}s por questão<br>
+                🎯 Dificuldade: ${selectedDifficulty.toUpperCase()}<br>
+                📚 Matéria: ${selectedSubject.toUpperCase()}
+            `;
+            
+            let message = '';
+            let icon = '';
+            
+            if (score >= 1000) {
+                message = '🌟 PERFEITO! Você é um verdadeiro expert!';
+                icon = '👑';
+            } else if (score >= 800) {
+                message = '🎉 EXCELENTE! Parabéns pelo desempenho!';
+                icon = '🏆';
+            } else if (score >= 600) {
+                message = '👏 MUITO BOM! Continue assim!';
+                icon = '🥈';
+            } else if (score >= 400) {
+                message = '👍 BOM! Você está no caminho certo!';
+                icon = '🥉';
+            } else {
+                message = '💪 Continue estudando! A prática leva à perfeição!';
+                icon = '📚';
+            }
+            
+            document.getElementById('resultMessage').textContent = message;
+            document.getElementById('resultIcon').textContent = icon;
+            
+            showScreen('resultScreen');
+        }
+
+        function saveUserStats() {
+            if (!currentUser || currentUser.type !== 'student') return;
+
+            const key = `${currentUser.name}_${currentUser.series}`;
+            
+            if (!userStats[key]) {
+                userStats[key] = {
+                    name: currentUser.name,
+                    series: currentUser.series,
+                    totalScore: 0,
+                    quizCount: 0,
+                    bestScore: 0,
+                    subjects: {}
+                };
+            }
+
+            userStats[key].totalScore += score;
+            userStats[key].quizCount += 1;
+            userStats[key].bestScore = Math.max(userStats[key].bestScore, score);
+            
+            // Estatísticas por matéria
+            if (!userStats[key].subjects[selectedSubject]) {
+                userStats[key].subjects[selectedSubject] = {
+                    count: 0,
+                    totalScore: 0
+                };
+            }
+            
+            userStats[key].subjects[selectedSubject].count++;
+            userStats[key].subjects[selectedSubject].totalScore += score;
+            
+            localStorage.setItem('userStats', JSON.stringify(userStats));
+            loadUserScore();
+        }
+
+        function loadUserScore() {
+            if (!currentUser || currentUser.type !== 'student') return;
+
+            const key = `${currentUser.name}_${currentUser.series}`;
+            const stats = userStats[key];
+            
+            if (stats) {
+                document.getElementById('studentScore').textContent = stats.totalScore;
+            }
+        }
+
+        function showRanking() {
+            const tbody = document.getElementById('rankingBody');
+            tbody.innerHTML = '';
+
+            const rankings = Object.values(userStats)
+                .sort((a, b) => b.totalScore - a.totalScore)
+                .slice(0, 15);
+
+            if (rankings.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">📊 Nenhum dado disponível</td></tr>';
+            } else {
+                rankings.forEach((user, index) => {
+                    const row = document.createElement('tr');
+                    const position = index + 1;
+                    let medal = '';
+                    
+                    if (position === 1) medal = '🥇';
+                    else if (position === 2) medal = '🥈';
+                    else if (position === 3) medal = '🥉';
+                    else medal = `${position}º`;
+                    
+                    row.innerHTML = `
+                        <td>${medal}</td>
+                        <td>${user.name}</td>
+                        <td>${user.series}</td>
+                        <td>${user.totalScore}</td>
+                        <td>${user.quizCount}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+
+            showScreen('rankingScreen');
+        }
+
+        function backToStudent() {
+            showScreen('studentScreen');
+        }
+
+        // ==========================================
+        // FUNÇÕES ADMINISTRATIVAS
+        // ==========================================
+        
+        function handleFileUpload() {
+            const input = document.getElementById('fileInput');
+            const file = input.files[0];
+            
+            if (!file) return;
+
+            const maxSize = 5 * 1024 * 1024; // 5MB
+            if (file.size > maxSize) {
+                showAlert('❌ Arquivo muito grande! Máximo 5MB.', 'danger');
+                return;
+            }
+
+            document.getElementById('fileName').innerHTML = 
+                `📎 <strong>Arquivo selecionado:</strong> ${file.name} (${(file.size/1024).toFixed(1)}KB)`;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    let data;
+                    const content = e.target.result;
+                    const extension = file.name.split('.').pop().toLowerCase();
+
+                    if (extension === 'json') {
+                        data = JSON.parse(content);
+                    } else if (extension === 'csv') {
+                        data = parseCSV(content);
+                    } else if (extension === 'yaml' || extension === 'yml') {
+                        data = parseYAML(content);
+                    } else {
+                        throw new Error('Formato de arquivo não suportado. Use JSON, CSV ou YAML.');
+                    }
+
+                    processUploadedData(data);
+                    
+                } catch (error) {
+                    document.getElementById('uploadStatus').innerHTML = 
+                        `<div style="color: #dc3545; padding: 1.5rem; background: rgba(248, 215, 218, 0.9); border-radius: 12px; border-left: 5px solid #dc3545;">
+                            ❌ <strong>Erro ao processar arquivo:</strong><br>
+                            ${error.message}
+                        </div>`;
+                    showAlert('❌ Erro no arquivo! Verifique o formato.', 'danger');
+                }
+            };
+            
+            reader.readAsText(file);
+        }
+
+        function parseCSV(content) {
+            const lines = content.split('\n').filter(line => line.trim() && !line.startsWith('#'));
+            if (lines.length < 2) {
+                throw new Error('CSV deve ter pelo menos um cabeçalho e uma linha de dados.');
+            }
+
+            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            const data = {
+                materia: '',
+                serie: '',
+                questoes: []
+            };
+
+            for (let i = 1; i < lines.length; i++) {
+                if (lines[i].trim() === '') continue;
+                
+                // Parse CSV line handling quoted values
+                const values = [];
+                let current = '';
+                let inQuotes = false;
+                
+                for (let j = 0; j < lines[i].length; j++) {
+                    const char = lines[i][j];
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        values.push(current.trim());
+                        current = '';
+                    } else {
+                        current += char;
+                    }
+                }
+                values.push(current.trim());
+
+                if (values.length < 9) continue;
+
+                const question = {
+                    pergunta: values[0],
+                    respostas: values.slice(1, 7),
+                    correta: 0, // Primeira resposta é sempre correta no CSV
+                    dificuldade: values[7] || 'medium'
+                };
+
+                data.questoes.push(question);
+                
+                if (i === 1) {
+                    data.materia = values[8] || 'ortografia';
+                    data.serie = values[9] || '6ano';
+                }
+            }
+
+            return data;
+        }
+
+        function parseYAML(content) {
+            const lines = content.split('\n').filter(line => !line.trim().startsWith('#'));
+            const data = {
+                materia: '',
+                serie: '',
+                questoes: []
+            };
+
+            let currentQuestion = null;
+            let inRespostas = false;
+
+            lines.forEach(line => {
+                const trimmed = line.trim();
+                
+                if (trimmed.startsWith('materia:')) {
+                    data.materia = trimmed.split(':')[1].trim().replace(/['"]/g, '');
+                } else if (trimmed.startsWith('serie:')) {
+                    data.serie = trimmed.split(':')[1].trim().replace(/['"]/g, '');
+                } else if (trimmed.startsWith('- pergunta:')) {
+                    if (currentQuestion) {
+                        data.questoes.push(currentQuestion);
+                    }
+                    currentQuestion = {
+                        pergunta: trimmed.split(':', 2)[1].trim().replace(/['"]/g, ''),
+                        respostas: [],
+                        correta: 0,
+                        dificuldade: 'medium'
+                    };
+                    inRespostas = false;
+                } else if (trimmed.startsWith('respostas:')) {
+                    inRespostas = true;
+                } else if (trimmed.startsWith('- ') && inRespostas && currentQuestion) {
+                    const answer = trimmed.substring(2).replace(/['"]/g, '').split('#')[0].trim();
+                    currentQuestion.respostas.push(answer);
+                } else if (trimmed.startsWith('correta:') && currentQuestion) {
+                    currentQuestion.correta = parseInt(trimmed.split(':')[1].trim()) || 0;
+                } else if (trimmed.startsWith('dificuldade:') && currentQuestion) {
+                    currentQuestion.dificuldade = trimmed.split(':')[1].trim().replace(/['"]/g, '');
+                }
+            });
+
+            if (currentQuestion) {
+                data.questoes.push(currentQuestion);
+            }
+
+            return data;
+        }
+
+        function processUploadedData(data) {
+            // Validações
+            if (!data.materia || !data.serie || !data.questoes || data.questoes.length === 0) {
+                throw new Error('Estrutura inválida. Verifique os campos: materia, serie, questoes.');
+            }
+
+            const validMaterias = ['ortografia', 'morfologia', 'redacao', 'sintaxe', 'literatura', 'fonologia'];
+            const validSeries = ['5ano', '6ano', '7ano', '8ano', '9ano'];
+            const validDificuldades = ['easy', 'medium', 'hard'];
+
+            if (!validMaterias.includes(data.materia)) {
+                throw new Error(`Matéria inválida. Use: ${validMaterias.join(', ')}`);
+            }
+
+            if (!validSeries.includes(data.serie)) {
+                throw new Error(`Série inválida. Use: ${validSeries.join(', ')}`);
+            }
+
+            // Validar questões
+            data.questoes.forEach((q, index) => {
+                if (!q.pergunta || !q.respostas || q.respostas.length < 5) {
+                    throw new Error(`Questão ${index + 1}: Deve ter pergunta e pelo menos 5 respostas.`);
+                }
+                
+                if (q.correta < 0 || q.correta >= q.respostas.length) {
+                    throw new Error(`Questão ${index + 1}: Índice da resposta correta inválido.`);
+                }
+
+                if (!validDificuldades.includes(q.dificuldade)) {
+                    q.dificuldade = 'medium'; // Default
+                }
+            });
+
+            // Adicionar ao banco
+            if (!questionsDatabase[data.materia]) {
+                questionsDatabase[data.materia] = {};
+            }
+
+            if (!questionsDatabase[data.materia][data.serie]) {
+                questionsDatabase[data.materia][data.serie] = [];
+            }
+
+            const beforeCount = questionsDatabase[data.materia][data.serie].length;
+            questionsDatabase[data.materia][data.serie].push(...data.questoes);
+
+            // Salvar localmente
+            localStorage.setItem('questionsDatabase', JSON.stringify(questionsDatabase));
+            localStorage.setItem('lastUploadDate', new Date().toISOString());
+
+            // Feedback de sucesso
+            document.getElementById('uploadStatus').innerHTML = 
+                `<div style="color: #155724; padding: 1.5rem; background: rgba(212, 237, 218, 0.9); border-radius: 12px; border-left: 5px solid #28a745;">
+                    ✅ <strong>Upload realizado com sucesso!</strong><br>
+                    📊 ${data.questoes.length} questões adicionadas<br>
+                    📚 Matéria: ${data.materia} | Série: ${data.serie}<br>
+                    📈 Total na base: ${beforeCount + data.questoes.length} questões
+                </div>`;
+
+            // Limpar form
+            document.getElementById('fileInput').value = '';
+            document.getElementById('fileName').textContent = '';
+            
+            updateStats();
+            showAlert(`✅ ${data.questoes.length} questões adicionadas!`, 'success');
+        }
+
+        function generateSampleFile() {
+            showAlert('📥 Gerando arquivos de exemplo...', 'info');
+            
+            const sampleData = {
+                materia: "ortografia",
+                serie: "6ano",
+                questoes: [
+                    {
+                        pergunta: "Qual é a grafia correta?",
+                        respostas: [
+                            "exceção",    // ← ÍNDICE 0 (CORRETA)
+                            "excessão",   // ← ÍNDICE 1 (incorreta)
+                            "exseção",    // ← ÍNDICE 2 (incorreta) 
+                            "excesão",    // ← ÍNDICE 3 (incorreta)
+                            "exeção",     // ← ÍNDICE 4 (incorreta)
+                            "eceção"      // ← ÍNDICE 5 (incorreta)
+                        ],
+                        correta: 0,  // ← Este número indica qual resposta é correta (0 = primeira)
+                        dificuldade: "medium"
+                    },
+                    {
+                        pergunta: "Complete a frase: Ontem eu _____ ao cinema.",
+                        respostas: [
+                            "foi",        // ← ÍNDICE 0 (incorreta)
+                            "fui",        // ← ÍNDICE 1 (CORRETA - indicada abaixo)
+                            "fomos",      // ← ÍNDICE 2 (incorreta)
+                            "foram",      // ← ÍNDICE 3 (incorreta)
+                            "fostes",     // ← ÍNDICE 4 (incorreta)
+                            "ides"        // ← ÍNDICE 5 (incorreta)
+                        ],
+                        correta: 1,  // ← A resposta correta é o ÍNDICE 1 ("fui")
+                        dificuldade: "easy"
+                    },
+                    {
+                        pergunta: "Qual palavra está com a acentuação correta?",
+                        respostas: [
+                            "medico",     // ← ÍNDICE 0 (incorreta)
+                            "medicô",     // ← ÍNDICE 1 (incorreta)
+                            "médico",     // ← ÍNDICE 2 (CORRETA - indicada abaixo)
+                            "médicô",     // ← ÍNDICE 3 (incorreta)
+                            "medíco",     // ← ÍNDICE 4 (incorreta)
+                            "medícô"      // ← ÍNDICE 5 (incorreta)
+                        ],
+                        correta: 2,  // ← A resposta correta é o ÍNDICE 2 ("médico")
+                        dificuldade: "hard"
+                    }
+                ]
+            };
+
+            // Criar conteúdo JSON com explicações
+            const explanations = `/*
+===============================================
+    📚 QUIZ LÍNGUA PORTUGUESA - ARQUIVO EXEMPLO
+===============================================
+
+🎯 COMO INDICAR A RESPOSTA CORRETA:
+   Use o campo "correta" com o ÍNDICE da resposta:
+   • 0 = primeira resposta
+   • 1 = segunda resposta  
+   • 2 = terceira resposta
+   • 3 = quarta resposta
+   • 4 = quinta resposta
+   • 5 = sexta resposta
+
+📋 ESTRUTURA OBRIGATÓRIA:
+   • materia: ortografia, morfologia, redacao, sintaxe, literatura, fonologia
+   • serie: 5ano, 6ano, 7ano, 8ano, 9ano
+   • questoes: array com as perguntas
+   • pergunta: texto da questão
+   • respostas: array com exatamente 6 opções
+   • correta: índice (0-5) da resposta certa
+   • dificuldade: easy (30s), medium (20s), hard (10s)
+
+⚠️  IMPORTANTE:
+   • Sempre forneça 6 respostas (1 correta + 5 incorretas)
+   • O sistema mostra 5 alternativas aleatórias (1 certa + 4 erradas)
+   • Respostas são embaralhadas automaticamente
+
+💡 EXEMPLO CSV ALTERNATIVO:
+   No formato CSV, a PRIMEIRA coluna de resposta é sempre a correta
+
+===============================================
+*/
+
+`;
+
+            const jsonString = explanations + JSON.stringify(sampleData, null, 2);
+            downloadFile(jsonString, 'exemplo_questoes_com_instrucoes.json', 'application/json');
+
+            // Gerar CSV
+            setTimeout(() => {
+                const csvContent = `# INSTRUÇÕES PARA ARQUIVO CSV:
+# - A PRIMEIRA resposta (Resposta1) é SEMPRE a correta
+# - Forneça 6 respostas: Resposta1 (correta) + Resposta2 a Resposta6 (incorretas)
+# - Matérias: ortografia, morfologia, redacao, sintaxe, literatura, fonologia
+# - Séries: 5ano, 6ano, 7ano, 8ano, 9ano
+# - Dificuldades: easy, medium, hard
+
+Pergunta,Resposta1_CORRETA,Resposta2,Resposta3,Resposta4,Resposta5,Resposta6,Dificuldade,Materia,Serie
+"Qual a grafia correta?",exceção,excessão,exseção,excesão,exeção,eceção,medium,ortografia,6ano
+"Complete: Ontem eu _____ ao cinema.",fui,foi,fomos,foram,fostes,ides,easy,ortografia,6ano
+"Qual palavra tem acentuação correta?",médico,medico,medicô,médicô,medíco,medícô,hard,ortografia,6ano`;
+
+                downloadFile(csvContent, 'exemplo_questoes.csv', 'text/csv');
+            }, 1000);
+
+            // Gerar YAML
+            setTimeout(() => {
+                const yamlContent = `# ===============================================
+# 📚 QUIZ LÍNGUA PORTUGUESA - EXEMPLO YAML
+# ===============================================
+#
+# 🎯 COMO INDICAR A RESPOSTA CORRETA:
+#    Use o campo "correta" com o ÍNDICE da resposta:
+#    • 0 = primeira resposta
+#    • 1 = segunda resposta  
+#    • 2 = terceira resposta
+#    • 3 = quarta resposta
+#    • 4 = quinta resposta
+#    • 5 = sexta resposta
+#
+# 📋 CAMPOS OBRIGATÓRIOS:
+#    • materia: ortografia, morfologia, redacao, sintaxe, literatura, fonologia
+#    • serie: 5ano, 6ano, 7ano, 8ano, 9ano
+#    • questoes: lista de perguntas
+#    • pergunta: texto da questão
+#    • respostas: lista com exatamente 6 opções
+#    • correta: índice (0-5) da resposta certa
+#    • dificuldade: easy (30s), medium (20s), hard (10s)
+#
+# ⚠️  IMPORTANTE:
+#    • Sempre forneça 6 respostas (1 correta + 5 incorretas)
+#    • O sistema mostra 5 alternativas aleatórias
+#    • Respostas são embaralhadas automaticamente
+#
+# ===============================================
+
+materia: ortografia
+serie: 6ano
+questoes:
+  - pergunta: "Qual é a grafia correta?"
+    respostas:
+      - "exceção"     # ← ÍNDICE 0 (CORRETA - veja campo 'correta' abaixo)
+      - "excessão"    # ← ÍNDICE 1 (incorreta)
+      - "exseção"     # ← ÍNDICE 2 (incorreta)
+      - "excesão"     # ← ÍNDICE 3 (incorreta)
+      - "exeção"      # ← ÍNDICE 4 (incorreta)
+      - "eceção"      # ← ÍNDICE 5 (incorreta)
+    correta: 0        # ← Este número indica que a resposta do ÍNDICE 0 é correta
+    dificuldade: "medium"
+
+  - pergunta: "Complete a frase: Ontem eu _____ ao cinema."
+    respostas:
+      - "foi"         # ← ÍNDICE 0 (incorreta)
+      - "fui"         # ← ÍNDICE 1 (CORRETA - veja campo 'correta' abaixo)
+      - "fomos"       # ← ÍNDICE 2 (incorreta)
+      - "foram"       # ← ÍNDICE 3 (incorreta)
+      - "fostes"      # ← ÍNDICE 4 (incorreta)
+      - "ides"        # ← ÍNDICE 5 (incorreta)
+    correta: 1        # ← A resposta correta é do ÍNDICE 1 ("fui")
+    dificuldade: "easy"
+
+  - pergunta: "Qual palavra está com a acentuação correta?"
+    respostas:
+      - "medico"      # ← ÍNDICE 0 (incorreta)
+      - "medicô"      # ← ÍNDICE 1 (incorreta)
+      - "médico"      # ← ÍNDICE 2 (CORRETA - veja campo 'correta' abaixo)
+      - "médicô"      # ← ÍNDICE 3 (incorreta)
+      - "medíco"      # ← ÍNDICE 4 (incorreta)
+      - "medícô"      # ← ÍNDICE 5 (incorreta)
+    correta: 2        # ← A resposta correta é do ÍNDICE 2 ("médico")
+    dificuldade: "hard"
+
+# ===============================================
+# 💡 DICAS ADICIONAIS:
+#    • Use aspas duplas para textos com caracteres especiais
+#    • Mantenha a indentação consistente (2 espaços)
+#    • Teste o arquivo antes de fazer upload
+#    • Em caso de erro, verifique a sintaxe YAML
+# ===============================================`;
+
+                downloadFile(yamlContent, 'exemplo_questoes.yaml', 'text/yaml');
+            }, 2000);
+
+            setTimeout(() => {
+                showAlert('📥 Três arquivos de exemplo foram baixados: JSON, CSV e YAML!', 'success');
+            }, 3000);
+        }
+
+        function downloadFile(content, filename, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function updateStats() {
+            const totalUsers = Object.keys(userStats).length;
+            const totalQuizzes = Object.values(userStats).reduce((sum, user) => sum + user.quizCount, 0);
+            const totalQuestions = Object.values(questionsDatabase).reduce((sum, materia) => {
+                return sum + Object.values(materia).reduce((sum2, serie) => sum2 + serie.length, 0);
+            }, 0);
+            const totalSubjects = Object.keys(questionsDatabase).length;
+
+            document.getElementById('totalUsers').textContent = totalUsers;
+            document.getElementById('totalQuizzes').textContent = totalQuizzes;
+            document.getElementById('totalQuestions').textContent = totalQuestions;
+            document.getElementById('totalSubjects').textContent = totalSubjects;
+        }
+
+        function showDetailedStats() {
+            const stats = Object.values(userStats);
+            const avgScore = stats.length > 0 ? Math.round(stats.reduce((sum, user) => sum + user.totalScore, 0) / stats.length) : 0;
+            const topScore = stats.length > 0 ? Math.max(...stats.map(user => user.bestScore)) : 0;
+
+            alert(`📈 RELATÓRIO DETALHADO DO SISTEMA
+
+👥 USUÁRIOS:
+   • Total de estudantes: ${stats.length}
+   • Pontuação média: ${avgScore}
+   • Melhor pontuação: ${topScore}
+
+📊 ATIVIDADE:
+   • Total de quizzes: ${stats.reduce((sum, user) => sum + user.quizCount, 0)}
+   • Média por usuário: ${stats.length > 0 ? Math.round(stats.reduce((sum, user) => sum + user.quizCount, 0) / stats.length) : 0}
+
+📚 CONTEÚDO:
+   • Matérias disponíveis: ${Object.keys(questionsDatabase).length}
+   • Total de questões: ${Object.values(questionsDatabase).reduce((sum, materia) => sum + Object.values(materia).reduce((sum2, serie) => sum2 + serie.length, 0), 0)}
+
+🎯 POR MATÉRIA:
+${Object.entries(questionsDatabase).map(([materia, series]) => {
+    const count = Object.values(series).reduce((sum, arr) => sum + arr.length, 0);
+    return `   • ${materia}: ${count} questões`;
+}).join('\n')}
+
+📅 Último upload: ${lastUploadDate ? new Date(lastUploadDate).toLocaleString('pt-BR') : 'Nunca'}`);
+        }
+
+        function exportData() {
+            const exportData = {
+                timestamp: new Date().toISOString(),
+                version: '2.0.0',
+                questionsDatabase: questionsDatabase,
+                userStats: userStats,
+                systemInfo: {
+                    totalUsers: Object.keys(userStats).length,
+                    totalQuestions: Object.values(questionsDatabase).reduce((sum, materia) => {
+                        return sum + Object.values(materia).reduce((sum2, serie) => sum2 + serie.length, 0);
+                    }, 0)
+                }
+            };
+
+            const jsonString = JSON.stringify(exportData, null, 2);
+            downloadFile(jsonString, `quiz_backup_${new Date().toISOString().split('T')[0]}.json`, 'application/json');
+            showAlert('💾 Backup dos dados exportado!', 'success');
+        }
+
+        function checkForNewQuizzes() {
+            const lastCheck = localStorage.getItem('lastUserCheck_' + currentUser.name);
+            const lastUpload = localStorage.getItem('lastUploadDate');
+            
+            if (lastUpload && (!lastCheck || new Date(lastUpload) > new Date(lastCheck))) {
+                document.getElementById('newQuizNotification').style.display = 'block';
+                setTimeout(() => {
+                    document.getElementById('newQuizNotification').style.display = 'none';
+                }, 8000);
+            }
+            
+            localStorage.setItem('lastUserCheck_' + currentUser.name, new Date().toISOString());
+        }
+
+        function downloadApp() {
+            const manifest = {
+                "name": "Quiz Língua Portuguesa",
+                "short_name": "Quiz LP",
+                "description": "App educativo para aprender Língua Portuguesa",
+                "start_url": "/",
+                "display": "standalone",
+                "background_color": "#667eea",
+                "theme_color": "#764ba2",
+                "orientation": "portrait-primary",
+                "categories": ["education", "games"],
+                "lang": "pt-BR",
+                "icons": [
+                    {
+                        "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDE5MiAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJncmFkaWVudCIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzY2N2VlYSIvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6Izc2NGJhMiIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiByeD0iNDAiIGZpbGw9InVybCgjZ3JhZGllbnQpIi8+PHRleHQgeD0iOTYiIHk9IjExMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjcwIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC13ZWlnaHQ9ImJvbGQiPkxQPC90ZXh0Pjwvc3ZnPg==",
+                        "sizes": "192x192",
+                        "type": "image/svg+xml"
+                    }
+                ]
+            };
+
+            alert(`📱 COMO INSTALAR O QUIZ LP COMO APP:
+
+🔹 CHROME/EDGE (PC/Android):
+   1. Clique nos 3 pontos (⋮) no menu
+   2. Selecione "Instalar Quiz LP" ou "Adicionar à tela inicial"
+
+🔹 SAFARI (iPhone/iPad):
+   1. Toque no botão Compartilhar (📤)
+   2. Role para baixo e toque "Adicionar à Tela de Início"
+   3. Confirme tocando "Adicionar"
+
+🔹 FIREFOX:
+   1. Abra o menu (☰)
+   2. Selecione "Instalar"
+
+✨ VANTAGENS DO APP:
+   • Funciona offline após primeira visita
+   • Ícone na tela inicial do celular
+   • Experiência de app nativo
+   • Notificações push (futuro)
+   • Carregamento mais rápido
+
+🌐 ACESSE: Salve este endereço nos favoritos para instalar depois!`);
+        }
+
+        // ==========================================
+        // UTILITÁRIOS E INICIALIZAÇÃO
+        // ==========================================
+        
+        function shuffleArray(array) {
+            const newArray = [...array];
+            for (let i = newArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+            }
+            return newArray;
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Event Listeners
+        document.getElementById('subjectSelect').addEventListener('change', updateStartButton);
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (currentUser && document.getElementById('quizScreen').classList.contains('active')) {
+                const key = e.key;
+                if (['1', '2', '3', '4', '5'].includes(key)) {
+                    e.preventDefault();
+                    const buttons = document.querySelectorAll('.answer-btn');
+                    const index = parseInt(key) - 1;
+                    if (buttons[index] && !buttons[index].classList.contains('correct') && !buttons[index].classList.contains('incorrect')) {
+                        buttons[index].click();
+                    }
+                }
+            }
+        });
+
+        // PWA Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                const swScript = `
+                    const CACHE_NAME = 'quiz-lp-v2';
+                    const urlsToCache = [
+                        '/',
+                        '/index.html'
+                    ];
+
+                    self.addEventListener('install', (event) => {
+                        event.waitUntil(
+                            caches.open(CACHE_NAME)
+                                .then((cache) => cache.addAll(urlsToCache))
+                        );
+                    });
+
+                    self.addEventListener('fetch', (event) => {
+                        event.respondWith(
+                            caches.match(event.request)
+                                .then((response) => {
+                                    return response || fetch(event.request);
+                                })
+                        );
+                    });
+                `;
+                
+                const blob = new Blob([swScript], { type: 'application/javascript' });
+                const swUrl = URL.createObjectURL(blob);
+                
+                navigator.serviceWorker.register(swUrl)
+                    .then(() => console.log('✅ Service Worker registrado'))
+                    .catch(() => console.log('❌ Erro no Service Worker'));
+            });
+        }
+
+        // Carregar dados salvos
+        window.addEventListener('load', () => {
+            // Carregar questões salvas
+            const savedQuestions = localStorage.getItem('questionsDatabase');
+            if (savedQuestions) {
+                try {
+                    questionsDatabase = { ...questionsDatabase, ...JSON.parse(savedQuestions) };
+                } catch (e) {
+                    console.log('Erro ao carregar questões salvas');
+                }
+            }
+
+            // Carregar usuário salvo
+            const savedUser = localStorage.getItem('currentUser');
+            if (savedUser) {
+                try {
+                    const user = JSON.parse(savedUser);
+                    if (user.type === 'student') {
+                        document.getElementById('studentName').value = user.name || '';
+                        document.getElementById('studentSeries').value = user.series || '';
+                    }
+                } catch (e) {
+                    localStorage.removeItem('currentUser');
+                }
+            }
+
+            // Auto-save a cada 30 segundos
+            setInterval(() => {
+                if (currentUser && currentUser.type === 'student') {
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                }
+            }, 30000);
+
+            console.log('🎉 Quiz Língua Portuguesa v2.0.0 carregado!');
+            console.log('📚 Sistema educacional completo ativo');
+            showAlert('🎉 Sistema carregado! Faça login para começar.', 'info');
+        });
+
+        // Manifest dinâmico
+        const manifestData = {
+            "name": "Quiz Língua Portuguesa",
+            "short_name": "Quiz LP",
+            "description": "App educativo para aprender Língua Portuguesa de forma divertida",
+            "start_url": window.location.pathname,
+            "display": "standalone",
+            "background_color": "#667eea",
+            "theme_color": "#764ba2",
+            "orientation": "portrait-primary",
+            "categories": ["education", "games"],
+            "lang": "pt-BR",
+            "icons": [
+                {
+                    "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDE5MiAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJncmFkaWVudCIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzY2N2VlYSIvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6Izc2NGJhMiIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiByeD0iNDAiIGZpbGw9InVybCgjZ3JhZGllbnQpIi8+PHRleHQgeD0iOTYiIHk9IjExMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjcwIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC13ZWlnaHQ9ImJvbGQiPkxQPC90ZXh0Pjwvc3ZnPg==",
+                    "sizes": "192x192",
+                    "type": "image/svg+xml",
+                    "purpose": "any maskable"
+                }
+            ]
+        };
+
+        const manifestBlob = new Blob([JSON.stringify(manifestData)], { type: 'application/json' });
+        const manifestUrl = URL.createObjectURL(manifestBlob);
+        document.getElementById('manifest-placeholder').href = manifestUrl;
+
+        // Adicionar estilos CSS para animações
+        const additionalStyles = `
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        `;
+
+        const styleElement = document.createElement('style');
+        styleElement.textContent = additionalStyles;
+        document.head.appendChild(styleElement);
+
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Língua Portuguesa</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="description" content="App educativo para aprender Língua Portuguesa de forma divertida">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Quiz LP">
+    
+    <!-- Manifest -->
+    <link rel="manifest" id="manifest-placeholder">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDE5MiAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJncmFkaWVudCIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzY2N2VlYSIvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6Izc2NGJhMiIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiByeD0iNDAiIGZpbGw9InVybCgjZ3JhZGllbnQpIi8+PHRleHQgeD0iOTYiIHk9IjExMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjcwIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC13ZWlnaHQ9ImJvbGQiPkxQPC90ZXh0Pjwvc3ZnPg==">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --info-color: #17a2b8;
+            --dark-color: #333;
+            --light-bg: rgba(255, 255, 255, 0.95);
+            --border-radius: 15px;
+            --box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--primary-gradient);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow-x: hidden;
+        }
+
+        .container {
+            background: var(--light-bg);
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: var(--box-shadow);
+            max-width: 900px;
+            width: 95%;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: var(--primary-gradient);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 2rem;
+            font-weight: bold;
+            margin: 0 auto 1rem;
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .header h1 {
+            color: var(--dark-color);
+            font-size: 2.8rem;
+            margin-bottom: 0.5rem;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.1rem;
+        }
+
+        .screen {
+            display: none;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .btn {
+            background: var(--primary-gradient);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 10px 5px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(-1px);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.8rem;
+            color: var(--dark-color);
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            background: rgba(255, 255, 255, 1);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .quiz-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: rgba(248, 249, 250, 0.8);
+            border-radius: var(--border-radius);
+            backdrop-filter: blur(10px);
+        }
+
+        .timer {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--danger-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .score {
+            font-size: 1.3rem;
+            color: var(--success-color);
+            font-weight: 600;
+        }
+
+        .question-card {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 2.5rem;
+            border-radius: var(--border-radius);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .question {
+            font-size: 1.4rem;
+            margin-bottom: 2rem;
+            color: var(--dark-color);
+            line-height: 1.7;
+            font-weight: 500;
+        }
+
+        .answers {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .answer-btn {
+            background: rgba(255, 255, 255, 0.9);
+            border: 2px solid #e1e5e9;
+            padding: 18px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            text-align: left;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .answer-btn:hover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+            transform: translateX(5px);
+        }
+
+        .answer-btn.correct {
+            background: rgba(40, 167, 69, 0.1);
+            border-color: var(--success-color);
+            color: #155724;
+        }
+
+        .answer-btn.incorrect {
+            background: rgba(220, 53, 69, 0.1);
+            border-color: var(--danger-color);
+            color: #721c24;
+        }
+
+        .difficulty-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .difficulty-card {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 2rem;
+            border-radius: var(--border-radius);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 3px solid transparent;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .difficulty-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+        }
+
+        .difficulty-card.selected {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .difficulty-card h3 {
+            font-size: 1.4rem;
+            margin-bottom: 0.5rem;
+            color: var(--dark-color);
+        }
+
+        .difficulty-card p {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .difficulty-easy { 
+            border-left: 6px solid var(--success-color); 
+        }
+        .difficulty-easy p { color: var(--success-color); }
+
+        .difficulty-medium { 
+            border-left: 6px solid var(--warning-color); 
+        }
+        .difficulty-medium p { color: var(--warning-color); }
+
+        .difficulty-hard { 
+            border-left: 6px solid var(--danger-color); 
+        }
+        .difficulty-hard p { color: var(--danger-color); }
+
+        .ranking-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1.5rem;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .ranking-table th, .ranking-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(225, 229, 233, 0.5);
+        }
+
+        .ranking-table th {
+            background: rgba(102, 126, 234, 0.1);
+            font-weight: 600;
+            color: var(--dark-color);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.9rem;
+        }
+
+        .ranking-table tr:hover {
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .ranking-table tr:first-child td {
+            background: rgba(255, 215, 0, 0.2);
+            font-weight: bold;
+        }
+
+        .notification {
+            background: rgba(209, 236, 241, 0.9);
+            color: #0c5460;
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            border-left: 5px solid var(--info-color);
+            backdrop-filter: blur(10px);
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(-100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 12px;
+            background: rgba(225, 229, 233, 0.5);
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary-gradient);
+            border-radius: 6px;
+            transition: width 0.5s ease;
+        }
+
+        .admin-upload {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 2.5rem;
+            border-radius: var(--border-radius);
+            border: 3px dashed #667eea;
+            text-align: center;
+            margin-bottom: 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .admin-upload:hover {
+            border-color: #5a6fd8;
+            background: rgba(102, 126, 234, 0.02);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-label {
+            display: inline-block;
+            padding: 15px 30px;
+            background: var(--primary-gradient);
+            color: white;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .file-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+        }
+
+        .result-icon {
+            font-size: 5rem;
+            margin: 2rem 0;
+            animation: bounce 1s infinite alternate;
+        }
+
+        @keyframes bounce {
+            from { transform: scale(1); }
+            to { transform: scale(1.1); }
+        }
+
+        .stats-card {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin: 1rem 0;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .floating-download {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 70px;
+            height: 70px;
+            background: var(--primary-gradient);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s ease;
+            z-index: 1000;
+            animation: pulse 2s infinite;
+        }
+
+        .floating-download:hover {
+            transform: scale(1.1);
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.6);
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4); }
+            50% { box-shadow: 0 10px 25px rgba(102, 126, 234, 0.8); }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1.5rem;
+                width: 98%;
+            }
+
+            .grid-2 {
+                grid-template-columns: 1fr;
+                gap: 2rem;
+            }
+            
+            .quiz-header {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+            
+            .header h1 {
+                font-size: 2.2rem;
+            }
+
+            .difficulty-selector {
+                grid-template-columns: 1fr;
+            }
+
+            .floating-download {
+                width: 60px;
+                height: 60px;
+                bottom: 20px;
+                right: 20px;
+                font-size: 1.5rem;
+            }
+
+            .timer {
+                font-size: 1.5rem;
+            }
+
+            .question {
+                font-size: 1.2rem;
+            }
+        }
+
+        .version-info {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            z-index: 999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">LP</div>
+            <h1>Quiz Língua Portuguesa</h1>
+            <p>🎯 Aprenda e teste seus conhecimentos de forma divertida!</p>
+        </div>
+
+        <!-- Tela de Login -->
+        <div id="loginScreen" class="screen active">
+            <h2 style="text-align: center; margin-bottom: 3rem; color: #333; font-size: 2rem;">🚪 Entrar no Sistema</h2>
+            <div class="grid-2">
+                <div>
+                    <h3 style="color: #667eea; margin-bottom: 1.5rem;">👨‍🎓 Estudante</h3>
+                    <div class="form-group">
+                        <label for="studentName">📝 Nome:</label>
+                        <input type="text" id="studentName" placeholder="Digite seu nome completo">
+                    </div>
+                    <div class="form-group">
+                        <label for="studentSeries">🎒 Série:</label>
+                        <select id="studentSeries">
+                            <option value="">Selecione sua série</option>
+                            <option value="5ano">5º Ano - Ensino Fundamental I</option>
+                            <option value="6ano">6º Ano - Ensino Fundamental II</option>
+                            <option value="7ano">7º Ano - Ensino Fundamental II</option>
+                            <option value="8ano">8º Ano - Ensino Fundamental II</option>
+                            <option value="9ano">9º Ano - Ensino Fundamental II</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-success" onclick="loginStudent()">Entrar como Estudante</button>
+                </div>
+                <div>
+                    <h3 style="color: #667eea; margin-bottom: 1.5rem;">👨‍🏫 Professor/Admin</h3>
+                    <div class="form-group">
+                        <label for="adminPassword">🔐 Senha Admin:</label>
+                        <input type="password" id="adminPassword" placeholder="Digite a senha">
+                        <small style="color: #666; display: block; margin-top: 0.5rem;">Senha padrão: admin123</small>
+                    </div>
+                    <button class="btn" onclick="loginAdmin()">Entrar como Admin</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tela Principal do Estudante -->
+        <div id="studentScreen" class="screen">
+            <div class="quiz-header">
+                <div>
+                    <strong id="welcomeStudent" style="font-size: 1.3rem;">Bem-vindo!</strong>
+                    <div class="score">🏆 Pontos: <span id="studentScore">0</span></div>
+                </div>
+                <div>
+                    <button class="btn btn-secondary" onclick="showRanking()">📊 Ranking</button>
+                    <button class="btn btn-danger" onclick="logout()">🚪 Sair</button>
+                </div>
+            </div>
+
+            <div id="newQuizNotification" class="notification" style="display: none;">
+                🎉 <strong>Novos quizzes disponíveis!</strong> Confira as novas questões adicionadas pelo professor.
+            </div>
+
+            <div class="form-group">
+                <label for="subjectSelect">📚 Selecione a Matéria:</label>
+                <select id="subjectSelect">
+                    <option value="">Escolha uma matéria</option>
+                    <option value="ortografia">✏️ Ortografia</option>
+                    <option value="morfologia">🔤 Morfologia</option>
+                    <option value="redacao">📝 Redação</option>
+                    <option value="sintaxe">🔗 Sintaxe</option>
+                    <option value="literatura">📖 Literatura</option>
+                    <option value="fonologia">🔊 Fonologia</option>
+                </select>
+            </div>
+
+            <h3 style="margin-bottom: 1.5rem; color: #333;">⚡ Escolha o Nível de Dificuldade:</h3>
+            <div class="difficulty-selector">
+                <div class="difficulty-card difficulty-easy" onclick="selectDifficulty('easy')">
+                    <h3>🟢 Fácil</h3>
+                    <p>30 segundos</p>
+                    <small>Ideal para iniciantes</small>
+                </div>
+                <div class="difficulty-card difficulty-medium" onclick="selectDifficulty('medium')">
+                    <h3>🟡 Médio</h3>
+                    <p>20 segundos</p>
+                    <small>Desafio equilibrado</small>
+                </div>
+                <div class="difficulty-card difficulty-hard" onclick="selectDifficulty('hard')">
+                    <h3>🔴 Difícil</h3>
+                    <p>10 segundos</p>
+                    <small>Para experts</small>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 2rem;">
+                <button class="btn" id="startQuizBtn" onclick="startQuiz()" disabled style="font-size: 1.2rem; padding: 18px 36px;">🚀 Iniciar Quiz</button>
+            </div>
+        </div>
+
+        <!-- Tela do Quiz -->
+        <div id="quizScreen" class="screen">
+            <div class="quiz-header">
+                <div class="timer">⏱️ <span id="timer">30</span>s</div>
+                <div class="score">📝 Questão <span id="questionNumber">1</span>/10</div>
+                <div class="score">🏆 Pontos: <span id="quizScore">0</span></div>
+            </div>
+
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 10%"></div>
+            </div>
+
+            <div class="question-card">
+                <div class="question" id="questionText">Carregando questão...</div>
+                <div class="answers" id="answersContainer"></div>
+            </div>
+
+            <div style="text-align: center; margin-top: 2rem;">
+                <button class="btn btn-danger" onclick="endQuiz()">⏹️ Finalizar Quiz</button>
+                <p style="margin-top: 1rem; color: #666; font-size: 0.9rem;">💡 Use as teclas 1-5 para responder rapidamente!</p>
+            </div>
+        </div>
+
+        <!-- Tela de Resultado -->
+        <div id="resultScreen" class="screen">
+            <div style="text-align: center;">
+                <h2 style="color: #333; margin-bottom: 1rem;">🎯 Quiz Finalizado!</h2>
+                <div class="result-icon" id="resultIcon">🎉</div>
+                <div style="font-size: 3rem; margin-bottom: 2rem; color: #28a745;">
+                    <strong>Pontuação: <span id="finalScore">0</span></strong>
+                </div>
+                <div class="stats-card">
+                    <div id="resultMessage" style="font-size: 1.3rem; margin-bottom: 1rem;">
+                        Parabéns! Continue praticando para melhorar ainda mais.
+                    </div>
+                    <div id="resultStats" style="color: #666;"></div>
+                </div>
+                <div style="margin-top: 2rem;">
+                    <button class="btn btn-success" onclick="backToStudent()">🎮 Novo Quiz</button>
+                    <button class="btn btn-secondary" onclick="showRanking()">🏆 Ver Ranking</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tela de Ranking -->
+        <div id="rankingScreen" class="screen">
+            <h2 style="margin-bottom: 2rem; text-align: center;">🏆 Ranking dos Estudantes</h2>
+            <table class="ranking-table">
+                <thead>
+                    <tr>
+                        <th>🏅 Posição</th>
+                        <th>👤 Nome</th>
+                        <th>🎓 Série</th>
+                        <th>🏆 Pontos</th>
+                        <th>📊 Quizzes</th>
+                    </tr>
+                </thead>
+                <tbody id="rankingBody">
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: #666;">Nenhum dado disponível</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div style="text-align: center; margin-top: 2rem;">
+                <button class="btn btn-secondary" onclick="backToStudent()">← Voltar</button>
+            </div>
+        </div>
+
+        <!-- Tela de Admin -->
+        <div id="adminScreen" class="screen">
+            <div class="quiz-header">
+                <h2>👨‍💼 Painel Administrativo</h2>
+                <button class="btn btn-danger" onclick="logout()">🚪 Sair</button>
+            </div>
+
+            <div class="admin-upload">
+                <h3>📁 Upload de Questões</h3>
+                <p style="margin: 1rem 0;">Envie um arquivo <strong>JSON</strong>, <strong>CSV</strong> ou <strong>YAML</strong> com as questões</p>
+                <input type="file" id="fileInput" class="file-input" accept=".json,.csv,.yaml,.yml" onchange="handleFileUpload()">
+                <label for="fileInput" class="file-label">📎 Escolher Arquivo</label>
+                <div id="fileName" style="margin-top: 1.5rem; color: #666; font-weight: 500;"></div>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>📋 Exemplo de estrutura JSON:</label>
+                    <textarea readonly style="height: 250px; font-family: 'Courier New', monospace; font-size: 0.85rem; background: #f8f9fa;">{
+  "materia": "ortografia",
+  "serie": "6ano", 
+  "questoes": [
+    {
+      "pergunta": "Qual a grafia correta?",
+      "respostas": [
+        "exceção",    // ← CORRETA (índice 0)
+        "excessão",   // ← incorreta
+        "exseção",    // ← incorreta
+        "excesão",    // ← incorreta
+        "exeção",     // ← incorreta
+        "eceção"      // ← incorreta
+      ],
+      "correta": 0,   // ← ÍNDICE da resposta correta
+      "dificuldade": "medium"
+    }
