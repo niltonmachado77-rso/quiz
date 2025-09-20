@@ -1,0 +1,142 @@
+{
+"quiz": \[
+{
+"materia": "ortografia",
+"serie": "5ano",
+"questoes": \[
+{
+"pergunta": "Eu preciso de \_\_\_\_\_\_\_ para escrever todas as minhas ideias.",
+"respostas": \["um caderno", "uma caderno", "uns cadrenos", "um cadreno", "um cadern", "un caderno"],
+"correta": 0,
+"dificuldade": "easy"
+},
+{
+"pergunta": "Qual verbo indica a ação de reparar algo quebrado ou que parou de funcionar?",
+"respostas": \["consertar", "concerto", "consertoo", "consertoh", "consserto", "consertt"],
+"correta": 0,
+"dificuldade": "easy"
+},
+{
+"pergunta": "Complete: Eu quero \_\_\_\_\_\_\_ meu computador que parou de funcionar.",
+"respostas": \["consertar", "concerto", "consserar", "consertoo", "consertt", "consertoh"],
+"correta": 0,
+"dificuldade": "medium"
+},
+{
+"pergunta": "Qual palavra significa algo essencial ou necessário?",
+"respostas": \["necessário", "neccessário", "necessaria", "nescessário", "necesário", "necessári"],
+"correta": 0,
+"dificuldade": "medium"
+},
+{
+"pergunta": "Complete: O arquiteto estudou um projeto \_\_\_\_\_\_\_ para a praça central.",
+"respostas": \["intrínseco", "intrinsica", "intrínsecco", "intrinsséco", "intrinseco", "intrínesca"],
+"correta": 0,
+"dificuldade": "hard"
+},
+{
+"pergunta": "Complete: A rua foi pavimentada com \_\_\_\_\_\_\_.",
+"respostas": \["paralelepípedo", "paralelipípedo", "paralepipeda", "parallelepípedo", "paralelpípedo", "paralelepipédo"],
+"correta": 0,
+"dificuldade": "hard"
+},
+{
+"pergunta": "Frase com variação de fala: Eu quiri \_\_\_\_\_\_\_ u meu carru.",
+"respostas": \["consertar", "consirttar", "cunsurtar", "conssirtar", "cunssertar", "conserttar"],
+"correta": 0,
+"dificuldade": "easy"
+}
+]
+},
+{
+"materia": "morfologia",
+"serie": "5ano",
+"questoes": \[
+{
+"pergunta": "Complete: O menino está \_\_\_\_\_\_\_ no quintal.",
+"respostas": \["correndo", "correnda", "corendo", "correntdo", "correendo", "correndoo"],
+"correta": 0,
+"dificuldade": "easy"
+},
+{
+"pergunta": "Qual palavra indica a qualidade de ser justo?",
+"respostas": \["justiça", "justiçaa", "justico", "jusstiça", "jstiça", "jutiça"],
+"correta": 0,
+"dificuldade": "easy"
+},
+{
+"pergunta": "Complete: Eles \_\_\_\_\_\_\_ todos os livros da biblioteca.",
+"respostas": \["emprestaram", "imprestaram", "emprestaramn", "emprstaram", "emprestarom", "empresaram"],
+"correta": 0,
+"dificuldade": "medium"
+},
+{
+"pergunta": "Qual palavra indica o plural de 'cidadão'?",
+"respostas": \["cidadãos", "cidadaons", "cidadãoes", "cidadãons", "cidadaõs", "cidadães"],
+"correta": 0,
+"dificuldade": "medium"
+},
+{
+"pergunta": "Complete: O professor explicou um conceito \_\_\_\_\_\_\_ e profundo.",
+"respostas": \["complexo", "complesso", "complexa", "complexoo", "complexu", "complexxo"],
+"correta": 0,
+"dificuldade": "hard"
+},
+{
+"pergunta": "Qual adjetivo indica algo muito antigo?",
+"respostas": \["ancestral", "anscestral", "ancestraal", "ansestral", "ancestrall", "ancesstral"],
+"correta": 0,
+"dificuldade": "hard"
+},
+{
+"pergunta": "Frase com variação de fala: Ellis estão \_\_\_\_\_\_\_ os livris da biblioteca.",
+"respostas": \["emprestando", "imprestandu", "impristando", "emprestindu", "impristindu", "empristando"],
+"correta": 0,
+"dificuldade": "easy"
+}
+]
+},
+{
+"materia": "redacao",
+"serie": "5ano",
+"questoes": \[
+{
+"pergunta": "Complete: O aluno escreveu um \_\_\_\_\_\_\_ sobre a natureza.",
+"respostas": \["texto", "tisto", "texo", "txeto", "tesso", "texsto"],
+"correta": 0,
+"dificuldade": "easy"
+},
+{
+"pergunta": "Qual palavra indica um gênero textual que conta uma história?",
+"respostas": \["narrativa", "narratiba", "narrativu", "narativa", "narrativaa", "narrativu"],
+"correta": 0,
+"dificuldade": "easy"
+},
+{
+"pergunta": "Complete: Para expressar minha opinião, eu escrevi uma \_\_\_\_\_\_\_ clara e objetiva.",
+"respostas": \["redação", "redassão", "redacuão", "rrelação", "redassã", "rredação"],
+"correta": 0,
+"dificuldade": "medium"
+},
+{
+"pergunta": "Escolha a palavra correta para a frase: A professora pediu um \_\_\_\_\_\_\_ sobre o projeto de ciências.",
+"respostas": \["relatório", "relatóriu", "relatorio", "relatóri", "relatóriu", "relattório"],
+"correta": 0,
+"dificuldade": "medium"
+},
+{
+"pergunta": "Complete: A introdução do texto deve ser \_\_\_\_\_\_\_ e envolvente.",
+"respostas": \["clara", "claro", "claraa", "clurrra", "clarri", "clari"],
+"correta": 0,
+"dificuldade": "hard"
+},
+{
+"pergunta": "Escolha a palavra correta: O desenvolvimento do texto precisa ser \_\_\_\_\_\_\_ e coerente.",
+"respostas": \["estruturado", "estruturadu", "estruturada", "estruturaddo", "estruturaduu", "estrutturato"],
+"correta": 0,
+"dificuldade": "hard"
+}
+]
+}
+]
+}
