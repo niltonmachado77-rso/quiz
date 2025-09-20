@@ -1799,10 +1799,12 @@ ${Object.entries(questionsDatabase).map(([materia, series]) => {
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">LP</div>
-            <h1>Quiz Língua Portuguesa</h1>
-            <p>🎯 Aprenda e teste seus conhecimentos de forma divertida!</p>
+            <div class="logo">Dora</div>
+            <h1>🎯 Gramaticando com Dora</h1>
+            <h2>QUIZ de Língua Portuguesa</h2>
+			<p>Aprenda e teste seus conhecimentos de forma divertida!</p>
         </div>
+
 
         <!-- Tela de Login -->
         <div id="loginScreen" class="screen active">
