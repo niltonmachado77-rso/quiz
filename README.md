@@ -1,7 +1,7 @@
 # Gramaticando com Dora - QUIZ
 Profa. Doralice Pereira de Santana - Remanso/BA
 Criei um sistema completo de quiz de Língua Portuguesa com todas as funcionalidades solicitadas. Aqui estão os principais recursos:
-🎯 Funcionalidades Principais
+  🎯 Funcionalidades Principais
 Para Estudantes:
 ✅ Login com nome e série (5º ao 9º ano)
 ✅ Seleção de matéria (Ortografia, Morfologia, Redação, etc.)
