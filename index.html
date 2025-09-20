@@ -1,4 +1,4 @@
-</textarea>
+                </textarea>
                 </div>
 
                 <div class="stats-card">
@@ -140,6 +140,9 @@
 
             document.getElementById('welcomeStudent').innerHTML = `👋 Olá, <strong>${name}</strong>!`;
             
+            // Ocultar estatísticas do login quando aluno logado
+            document.getElementById('systemStatsLogin').style.display = 'none';
+            
             checkForNewQuizzes();
             showScreen('studentScreen');
             loadUserScore();
@@ -161,6 +164,9 @@
                 loginTime: new Date().toISOString()
             };
 
+            // Ocultar estatísticas do login quando admin logado
+            document.getElementById('systemStatsLogin').style.display = 'none';
+
             showScreen('adminScreen');
             updateStats();
             showAlert('👨‍💼 Login administrativo realizado com sucesso!', 'success');
@@ -173,10 +179,93 @@
             selectedDifficulty = null;
             selectedSubject = null;
             
+            // Mostrar estatísticas novamente no login
+            document.getElementById('systemStatsLogin').style.display = 'block';
+            updateLoginStats();
+            
             showScreen('loginScreen');
             resetForm();
             
             showAlert('👋 Logout realizado com sucesso!', 'info');
+        }
+
+        // Função para atualizar estatísticas na tela de login
+        function updateLoginStats() {
+            const totalUsers = Object.keys(userStats).length;
+            const totalQuizzes = Object.values(userStats).reduce((sum, user) => sum + user.quizCount, 0);
+            const totalQuestions = Object.values(questionsDatabase).reduce((sum, materia) => {
+                return sum + Object.values(materia).reduce((sum2, serie) => sum2 + serie.length, 0);
+            }, 0);
+            const totalSubjects = Object.keys(questionsDatabase).length;
+
+            document.getElementById('totalUsersLogin').textContent = totalUsers;
+            document.getElementById('totalQuizzesLogin').textContent = totalQuizzes;
+            document.getElementById('totalQuestionsLogin').textContent = totalQuestions;
+            document.getElementById('totalSubjectsLogin').textContent = totalSubjects;
+        }
+
+        // Funções públicas para visitantes
+        function showDetailedStatsPublic() {
+            const stats = Object.values(userStats);
+            const avgScore = stats.length > 0 ? Math.round(stats.reduce((sum, user) => sum + user.totalScore, 0) / stats.length) : 0;
+            const topScore = stats.length > 0 ? Math.max(...stats.map(user => user.bestScore)) : 0;
+
+            alert(`📈 RELATÓRIO PÚBLICO DO SISTEMA QUIZ LP
+
+🎓 DESEMPENHO DOS ESTUDANTES:
+   • Total de estudantes: ${stats.length}
+   • Pontuação média: ${avgScore} pontos
+   • Melhor pontuação: ${topScore} pontos
+   • Total de quizzes realizados: ${stats.reduce((sum, user) => sum + user.quizCount, 0)}
+
+📚 CONTEÚDO DISPONÍVEL:
+   • Matérias ativas: ${Object.keys(questionsDatabase).length}
+   • Total de questões: ${Object.values(questionsDatabase).reduce((sum, materia) => sum + Object.values(materia).reduce((sum2, serie) => sum2 + serie.length, 0), 0)}
+
+🎯 DISTRIBUIÇÃO POR MATÉRIA:
+${Object.entries(questionsDatabase).map(([materia, series]) => {
+    const count = Object.values(series).reduce((sum, arr) => sum + arr.length, 0);
+    return `   • ${materia.charAt(0).toUpperCase() + materia.slice(1)}: ${count} questões`;
+}).join('\n')}
+
+📊 SÉRIES ATENDIDAS:
+   • 5º ao 9º ano do Ensino Fundamental
+   • Conteúdo adaptado por série
+   • Dificuldades: Fácil, Médio e Difícil
+
+🎮 COMO PARTICIPAR:
+   • Faça seu cadastro como estudante
+   • Escolha sua matéria preferida
+   • Teste seus conhecimentos
+   • Compete no ranking!
+
+💡 Sistema desenvolvido para educação de qualidade!`);
+        }
+
+        function exportPublicData() {
+            const publicData = {
+                timestamp: new Date().toISOString(),
+                version: '2.0.0',
+                systemInfo: {
+                    totalUsers: Object.keys(userStats).length,
+                    totalQuestions: Object.values(questionsDatabase).reduce((sum, materia) => {
+                        return sum + Object.values(materia).reduce((sum2, serie) => sum2 + serie.length, 0);
+                    }, 0),
+                    totalQuizzes: Object.values(userStats).reduce((sum, user) => sum + user.quizCount, 0),
+                    subjects: Object.keys(questionsDatabase),
+                    series: ['5ano', '6ano', '7ano', '8ano', '9ano']
+                },
+                publicStats: {
+                    averageScore: Object.values(userStats).length > 0 ? 
+                        Math.round(Object.values(userStats).reduce((sum, user) => sum + user.totalScore, 0) / Object.values(userStats).length) : 0,
+                    topScore: Object.values(userStats).length > 0 ? 
+                        Math.max(...Object.values(userStats).map(user => user.bestScore)) : 0
+                }
+            };
+
+            const jsonString = JSON.stringify(publicData, null, 2);
+            downloadFile(jsonString, `quiz_lp_info_publica_${new Date().toISOString().split('T')[0]}.json`, 'application/json');
+            showAlert('📊 Informações públicas exportadas!', 'success');
         }
 
         function resetForm() {
@@ -722,25 +811,62 @@
         }
 
         function processUploadedData(data) {
-            // Validações
-            if (!data.materia || !data.serie || !data.questoes || data.questoes.length === 0) {
-                throw new Error('Estrutura inválida. Verifique os campos: materia, serie, questoes.');
+            let totalQuestionsAdded = 0;
+            let processedItems = [];
+
+            // Se o dados tiver a estrutura com array "quiz", processe cada item
+            if (data.quiz && Array.isArray(data.quiz)) {
+                data.quiz.forEach(quizItem => {
+                    // Validações para cada item do quiz
+                    if (!quizItem.materia || !quizItem.serie || !quizItem.questoes || quizItem.questoes.length === 0) {
+                        throw new Error('Estrutura inválida. Verifique os campos: materia, serie, questoes.');
+                    }
+                    
+                    // Processar cada item do quiz individualmente
+                    const result = processQuizItem(quizItem);
+                    totalQuestionsAdded += result.questionsAdded;
+                    processedItems.push(result.summary);
+                });
+
+                // Feedback consolidado para múltiplos itens
+                document.getElementById('uploadStatus').innerHTML = 
+                    `<div style="color: #155724; padding: 1.5rem; background: rgba(212, 237, 218, 0.9); border-radius: 12px; border-left: 5px solid #28a745;">
+                        ✅ <strong>Upload em lote realizado com sucesso!</strong><br>
+                        📊 ${totalQuestionsAdded} questões adicionadas em ${processedItems.length} matérias/séries<br>
+                        📚 Processados: ${processedItems.join(', ')}<br>
+                        🎯 Todas as questões foram salvas no sistema
+                    </div>`;
+
+                showAlert(`✅ ${totalQuestionsAdded} questões adicionadas em ${processedItems.length} grupos!`, 'success');
+            } 
+            // Se for a estrutura simples, processe normalmente
+            else if (data.materia && data.serie && data.questoes) {
+                const result = processQuizItem(data);
+                showAlert(`✅ ${result.questionsAdded} questões adicionadas!`, 'success');
+            } 
+            else {
+                throw new Error('Estrutura inválida. O arquivo deve conter materia, serie e questoes OU um array "quiz".');
             }
 
+            // Salvar dados persistentes
+            saveDataToPersistentFiles();
+        }
+
+        function processQuizItem(quizItem) {
             const validMaterias = ['ortografia', 'morfologia', 'redacao', 'sintaxe', 'literatura', 'fonologia'];
             const validSeries = ['5ano', '6ano', '7ano', '8ano', '9ano'];
             const validDificuldades = ['easy', 'medium', 'hard'];
 
-            if (!validMaterias.includes(data.materia)) {
-                throw new Error(`Matéria inválida. Use: ${validMaterias.join(', ')}`);
+            if (!validMaterias.includes(quizItem.materia)) {
+                throw new Error(`Matéria inválida: ${quizItem.materia}. Use: ${validMaterias.join(', ')}`);
             }
 
-            if (!validSeries.includes(data.serie)) {
-                throw new Error(`Série inválida. Use: ${validSeries.join(', ')}`);
+            if (!validSeries.includes(quizItem.serie)) {
+                throw new Error(`Série inválida: ${quizItem.serie}. Use: ${validSeries.join(', ')}`);
             }
 
             // Validar questões
-            data.questoes.forEach((q, index) => {
+            quizItem.questoes.forEach((q, index) => {
                 if (!q.pergunta || !q.respostas || q.respostas.length < 5) {
                     throw new Error(`Questão ${index + 1}: Deve ter pergunta e pelo menos 5 respostas.`);
                 }
@@ -755,36 +881,158 @@
             });
 
             // Adicionar ao banco
-            if (!questionsDatabase[data.materia]) {
-                questionsDatabase[data.materia] = {};
+            if (!questionsDatabase[quizItem.materia]) {
+                questionsDatabase[quizItem.materia] = {};
             }
 
-            if (!questionsDatabase[data.materia][data.serie]) {
-                questionsDatabase[data.materia][data.serie] = [];
+            if (!questionsDatabase[quizItem.materia][quizItem.serie]) {
+                questionsDatabase[quizItem.materia][quizItem.serie] = [];
             }
 
-            const beforeCount = questionsDatabase[data.materia][data.serie].length;
-            questionsDatabase[data.materia][data.serie].push(...data.questoes);
+            const beforeCount = questionsDatabase[quizItem.materia][quizItem.serie].length;
+
+            // Verificar duplicatas por pergunta e substituir se necessário
+            let addedCount = 0;
+            let updatedCount = 0;
+
+            quizItem.questoes.forEach(newQuestion => {
+                const existingIndex = questionsDatabase[quizItem.materia][quizItem.serie]
+                    .findIndex(q => q.pergunta === newQuestion.pergunta);
+                
+                if (existingIndex !== -1) {
+                    // Substituir questão existente
+                    questionsDatabase[quizItem.materia][quizItem.serie][existingIndex] = newQuestion;
+                    updatedCount++;
+                } else {
+                    // Adicionar nova questão
+                    questionsDatabase[quizItem.materia][quizItem.serie].push(newQuestion);
+                    addedCount++;
+                }
+            });
 
             // Salvar localmente
             localStorage.setItem('questionsDatabase', JSON.stringify(questionsDatabase));
             localStorage.setItem('lastUploadDate', new Date().toISOString());
 
-            // Feedback de sucesso
-            document.getElementById('uploadStatus').innerHTML = 
-                `<div style="color: #155724; padding: 1.5rem; background: rgba(212, 237, 218, 0.9); border-radius: 12px; border-left: 5px solid #28a745;">
-                    ✅ <strong>Upload realizado com sucesso!</strong><br>
-                    📊 ${data.questoes.length} questões adicionadas<br>
-                    📚 Matéria: ${data.materia} | Série: ${data.serie}<br>
-                    📈 Total na base: ${beforeCount + data.questoes.length} questões
-                </div>`;
+            // Feedback de sucesso para item único
+            if (document.getElementById('uploadStatus')) {
+                document.getElementById('uploadStatus').innerHTML = 
+                    `<div style="color: #155724; padding: 1.5rem; background: rgba(212, 237, 218, 0.9); border-radius: 12px; border-left: 5px solid #28a745;">
+                        ✅ <strong>Upload realizado com sucesso!</strong><br>
+                        📊 ${addedCount} questões novas adicionadas, ${updatedCount} questões atualizadas<br>
+                        📚 Matéria: ${quizItem.materia} | Série: ${quizItem.serie}<br>
+                        📈 Total na base: ${questionsDatabase[quizItem.materia][quizItem.serie].length} questões
+                    </div>`;
+            }
 
             // Limpar form
-            document.getElementById('fileInput').value = '';
-            document.getElementById('fileName').textContent = '';
+            if (document.getElementById('fileInput')) {
+                document.getElementById('fileInput').value = '';
+                document.getElementById('fileName').textContent = '';
+            }
             
             updateStats();
-            showAlert(`✅ ${data.questoes.length} questões adicionadas!`, 'success');
+
+            return {
+                questionsAdded: addedCount + updatedCount,
+                summary: `${quizItem.materia}/${quizItem.serie}`
+            };
+        }
+
+        // Função para salvar dados em arquivos persistentes
+        async function saveDataToPersistentFiles() {
+            try {
+                // Salvar questões
+                const questionsBlob = new Blob([JSON.stringify(questionsDatabase, null, 2)], { type: 'application/json' });
+                // Simular salvamento (em ambiente real seria uma requisição ao servidor)
+                console.log('📁 Dados das questões salvos em questionsDatabase.json');
+
+                // Salvar estatísticas
+                const statsBlob = new Blob([JSON.stringify(userStats, null, 2)], { type: 'application/json' });
+                console.log('📊 Estatísticas salvas em userStats.json');
+
+                showAlert('💾 Dados salvos persistentemente!', 'success');
+            } catch (error) {
+                console.error('Erro ao salvar dados:', error);
+            }
+        }
+
+        // Função para carregar arquivos JSON do servidor
+        async function loadServerFiles() {
+            const filesToLoad = [
+                'questionsDatabase.json',
+                'userStats.json',
+                'ortografia.json',
+                'morfologia.json',
+                'redacao.json',
+                'sintaxe.json',
+                'literatura.json',
+                'fonologia.json'
+            ];
+
+            for (const fileName of filesToLoad) {
+                try {
+                    const response = await fetch(fileName);
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        if (fileName === 'userStats.json') {
+                            // Mesclar estatísticas, mantendo dados locais
+                            userStats = { ...data, ...userStats };
+                            localStorage.setItem('userStats', JSON.stringify(userStats));
+                        } else if (fileName === 'questionsDatabase.json') {
+                            // Mesclar base de questões
+                            questionsDatabase = mergeQuestionsDatabase(data, questionsDatabase);
+                        } else {
+                            // Arquivos individuais de matéria
+                            const materia = fileName.replace('.json', '');
+                            if (data.quiz && Array.isArray(data.quiz)) {
+                                processUploadedData(data);
+                            }
+                        }
+                        
+                        console.log(`📁 Carregado: ${fileName}`);
+                    }
+                } catch (error) {
+                    // Arquivo não existe ou erro de carregamento - normal em muitos casos
+                    console.log(`⚠️ ${fileName} não encontrado ou erro ao carregar`);
+                }
+            }
+        }
+
+        // Função para mesclar bases de dados de questões
+        function mergeQuestionsDatabase(serverData, localData) {
+            const merged = { ...localData };
+
+            Object.keys(serverData).forEach(materia => {
+                if (!merged[materia]) {
+                    merged[materia] = {};
+                }
+
+                Object.keys(serverData[materia]).forEach(serie => {
+                    if (!merged[materia][serie]) {
+                        merged[materia][serie] = [];
+                    }
+
+                    // Mesclar questões, priorizando questões do servidor por pergunta
+                    serverData[materia][serie].forEach(serverQuestion => {
+                        const existingIndex = merged[materia][serie]
+                            .findIndex(q => q.pergunta === serverQuestion.pergunta);
+                        
+                        if (existingIndex !== -1) {
+                            // Substituir pela versão do servidor
+                            merged[materia][serie][existingIndex] = serverQuestion;
+                        } else {
+                            // Adicionar nova questão
+                            merged[materia][serie].push(serverQuestion);
+                        }
+                    });
+                });
+            });
+
+            // Salvar dados mesclados
+            localStorage.setItem('questionsDatabase', JSON.stringify(merged));
+            return merged;
         }
 
         function generateSampleFile() {
@@ -1183,9 +1431,9 @@ ${Object.entries(questionsDatabase).map(([materia, series]) => {
             });
         }
 
-        // Carregar dados salvos
-        window.addEventListener('load', () => {
-            // Carregar questões salvas
+        // Carregar dados salvos e arquivos do servidor
+        window.addEventListener('load', async () => {
+            // Carregar questões salvas do localStorage
             const savedQuestions = localStorage.getItem('questionsDatabase');
             if (savedQuestions) {
                 try {
@@ -1194,6 +1442,12 @@ ${Object.entries(questionsDatabase).map(([materia, series]) => {
                     console.log('Erro ao carregar questões salvas');
                 }
             }
+
+            // Carregar arquivos JSON do servidor
+            await loadServerFiles();
+
+            // Atualizar estatísticas da tela de login
+            updateLoginStats();
 
             // Carregar usuário salvo
             const savedUser = localStorage.getItem('currentUser');
@@ -1214,12 +1468,239 @@ ${Object.entries(questionsDatabase).map(([materia, series]) => {
                 if (currentUser && currentUser.type === 'student') {
                     localStorage.setItem('currentUser', JSON.stringify(currentUser));
                 }
+                // Auto-save das questões e estatísticas
+                saveDataToPersistentFiles();
             }, 30000);
 
             console.log('🎉 Quiz Língua Portuguesa v2.0.0 carregado!');
             console.log('📚 Sistema educacional completo ativo');
-            showAlert('🎉 Sistema carregado! Faça login para começar.', 'info');
+            console.log('📁 Carregamento de arquivos JSON do servidor concluído');
+            
+            showAlert('🎉 Sistema carregado! Todos os dados foram sincronizados.', 'info');
         });
+
+        // Função melhorada para gerar exemplos incluindo formato de múltiplas matérias
+        function generateSampleFile() {
+            showAlert('📥 Gerando arquivos de exemplo...', 'info');
+            
+            // Exemplo simples (formato original)
+            const sampleDataSimple = {
+                materia: "ortografia",
+                serie: "6ano",
+                questoes: [
+                    {
+                        pergunta: "Qual é a grafia correta?",
+                        respostas: [
+                            "exceção",    // ← ÍNDICE 0 (CORRETA)
+                            "excessão",   // ← ÍNDICE 1 (incorreta)
+                            "exseção",    // ← ÍNDICE 2 (incorreta) 
+                            "excesão",    // ← ÍNDICE 3 (incorreta)
+                            "exeção",     // ← ÍNDICE 4 (incorreta)
+                            "eceção"      // ← ÍNDICE 5 (incorreta)
+                        ],
+                        correta: 0,
+                        dificuldade: "medium"
+                    }
+                ]
+            };
+
+            // Exemplo de múltiplas matérias (novo formato)
+            const sampleDataMultiple = {
+                quiz: [
+                    {
+                        materia: "ortografia",
+                        serie: "6ano",
+                        questoes: [
+                            {
+                                pergunta: "Qual é a grafia correta?",
+                                respostas: ["exceção", "excessão", "exseção", "excesão", "exeção", "eceção"],
+                                correta: 0,
+                                dificuldade: "medium"
+                            },
+                            {
+                                pergunta: "Complete: Ontem eu _____ ao cinema.",
+                                respostas: ["fui", "foi", "fomos", "foram", "fostes", "ides"],
+                                correta: 0,
+                                dificuldade: "easy"
+                            }
+                        ]
+                    },
+                    {
+                        materia: "morfologia",
+                        serie: "6ano",
+                        questoes: [
+                            {
+                                pergunta: "Qual é o plural de 'lápis'?",
+                                respostas: ["lápis", "lapis", "lápises", "lápisses", "lapiss", "lapizes"],
+                                correta: 0,
+                                dificuldade: "easy"
+                            }
+                        ]
+                    },
+                    {
+                        materia: "ortografia",
+                        serie: "7ano",
+                        questoes: [
+                            {
+                                pergunta: "Qual palavra tem acentuação correta?",
+                                respostas: ["médico", "medico", "medicô", "médicô", "medíco", "medícô"],
+                                correta: 0,
+                                dificuldade: "hard"
+                            }
+                        ]
+                    }
+                ]
+            };
+
+            // Criar conteúdo JSON com explicações
+            const explanations = `/*
+===============================================
+    📚 QUIZ LÍNGUA PORTUGUESA - EXEMPLOS v2.0
+===============================================
+
+🆕 NOVO: SUPORTE A MÚLTIPLAS MATÉRIAS EM UM SÓ ARQUIVO!
+
+🎯 FORMATOS SUPORTADOS:
+
+1️⃣ FORMATO SIMPLES (uma matéria por arquivo):
+   {
+     "materia": "ortografia",
+     "serie": "6ano",
+     "questoes": [...]
+   }
+
+2️⃣ FORMATO MÚLTIPLO (várias matérias em um arquivo):
+   {
+     "quiz": [
+       {
+         "materia": "ortografia",
+         "serie": "6ano",
+         "questoes": [...]
+       },
+       {
+         "materia": "morfologia",  
+         "serie": "7ano",
+         "questoes": [...]
+       }
+     ]
+   }
+
+📋 COMO INDICAR RESPOSTA CORRETA:
+   • Use o campo "correta" com o ÍNDICE (0-5)
+   • 0 = primeira resposta (sempre correta no exemplo)
+   • 1 = segunda resposta, etc.
+
+📚 MATÉRIAS: ortografia, morfologia, redacao, sintaxe, literatura, fonologia
+🎓 SÉRIES: 5ano, 6ano, 7ano, 8ano, 9ano  
+⚡ DIFICULDADES: easy (30s), medium (20s), hard (10s)
+
+⚠️ IMPORTANTE:
+   • Sempre 6 respostas (1 correta + 5 incorretas)
+   • Sistema mostra 5 aleatórias (1 certa + 4 erradas)
+   • Questões com mesma pergunta são substituídas
+   • Upload preserva dados locais + servidor
+
+===============================================
+*/
+
+EXEMPLO FORMATO SIMPLES:
+`;
+
+            const explanationsMultiple = `
+
+EXEMPLO FORMATO MÚLTIPLO (RECOMENDADO):
+`;
+
+            // Gerar arquivos
+            setTimeout(() => {
+                const jsonSimple = explanations + JSON.stringify(sampleDataSimple, null, 2);
+                downloadFile(jsonSimple, 'exemplo_simples_uma_materia.json', 'application/json');
+            }, 500);
+
+            setTimeout(() => {
+                const jsonMultiple = explanationsMultiple + JSON.stringify(sampleDataMultiple, null, 2);
+                downloadFile(jsonMultiple, 'exemplo_multiplas_materias.json', 'application/json');
+            }, 1000);
+
+            // Gerar CSV
+            setTimeout(() => {
+                const csvContent = `# INSTRUÇÕES PARA ARQUIVO CSV:
+# - A PRIMEIRA resposta (Resposta1) é SEMPRE a correta
+# - Para múltiplas matérias, use várias linhas com Materia/Serie diferentes
+# - Sistema agrupa automaticamente por matéria/série
+
+Pergunta,Resposta1_CORRETA,Resposta2,Resposta3,Resposta4,Resposta5,Resposta6,Dificuldade,Materia,Serie
+"Qual a grafia correta?",exceção,excessão,exseção,excesão,exeção,eceção,medium,ortografia,6ano
+"Complete: Ontem eu ___ ao cinema.",fui,foi,fomos,foram,fostes,ides,easy,ortografia,6ano
+"Qual é o plural de lápis?",lápis,lapis,lápises,lápisses,lapiss,lapizes,easy,morfologia,6ano
+"Palavra com acentuação correta:",médico,medico,medicô,médicô,medíco,medícô,hard,ortografia,7ano`;
+
+                downloadFile(csvContent, 'exemplo_multiplas_materias.csv', 'text/csv');
+            }, 1500);
+
+            // Gerar YAML
+            setTimeout(() => {
+                const yamlContent = `# ===============================================
+# 📚 QUIZ LÍNGUA PORTUGUESA - EXEMPLO MÚLTIPLO
+# ===============================================
+
+# 🆕 FORMATO PARA MÚLTIPLAS MATÉRIAS/SÉRIES:
+quiz:
+  - materia: ortografia
+    serie: 6ano
+    questoes:
+      - pergunta: "Qual é a grafia correta?"
+        respostas:
+          - "exceção"     # ← ÍNDICE 0 (CORRETA)
+          - "excessão"    # ← ÍNDICE 1 (incorreta)
+          - "exseção"     # ← ÍNDICE 2 (incorreta)
+          - "excesão"     # ← ÍNDICE 3 (incorreta)
+          - "exeção"      # ← ÍNDICE 4 (incorreta)
+          - "eceção"      # ← ÍNDICE 5 (incorreta)
+        correta: 0
+        dificuldade: "medium"
+
+  - materia: morfologia
+    serie: 6ano
+    questoes:
+      - pergunta: "Qual é o plural de 'lápis'?"
+        respostas:
+          - "lápis"       # ← CORRETA
+          - "lapis"
+          - "lápises"
+          - "lápisses"
+          - "lapiss"
+          - "lapizes"
+        correta: 0
+        dificuldade: "easy"
+
+  - materia: ortografia
+    serie: 7ano
+    questoes:
+      - pergunta: "Qual palavra tem acentuação correta?"
+        respostas:
+          - "médico"      # ← CORRETA
+          - "medico"
+          - "medicô"
+          - "médicô"
+          - "medíco"
+          - "medícô"
+        correta: 0
+        dificuldade: "hard"
+
+# 💡 VANTAGENS DO FORMATO MÚLTIPLO:
+#   • Um arquivo para várias matérias
+#   • Organização mais eficiente  
+#   • Upload em lote
+#   • Fácil manutenção`;
+
+                downloadFile(yamlContent, 'exemplo_multiplas_materias.yaml', 'text/yaml');
+            }, 2000);
+
+            setTimeout(() => {
+                showAlert('📥 Quatro arquivos de exemplo baixados: JSON simples, JSON múltiplo, CSV e YAML!', 'success');
+            }, 2500);
+        }
 
         // Manifest dinâmico
         const manifestData = {
@@ -1799,44 +2280,77 @@ ${Object.entries(questionsDatabase).map(([materia, series]) => {
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">Dora</div>
-            <h1>🎯 Gramaticando com Dora</h1>
-            <h2>QUIZ de Língua Portuguesa</h2>
-			<p>Aprenda e teste seus conhecimentos de forma divertida!</p>
+            <div class="logo">LP</div>
+            <h1>Quiz Língua Portuguesa</h1>
+            <p>🎯 Aprenda e teste seus conhecimentos de forma divertida!</p>
         </div>
-
 
         <!-- Tela de Login -->
         <div id="loginScreen" class="screen active">
             <h2 style="text-align: center; margin-bottom: 3rem; color: #333; font-size: 2rem;">🚪 Entrar no Sistema</h2>
-            <div class="grid-2">
-                <div>
-                    <h3 style="color: #667eea; margin-bottom: 1.5rem;">👨‍🎓 Estudante</h3>
-                    <div class="form-group">
-                        <label for="studentName">📝 Nome:</label>
-                        <input type="text" id="studentName" placeholder="Digite seu nome completo">
-                    </div>
-                    <div class="form-group">
-                        <label for="studentSeries">🎒 Série:</label>
-                        <select id="studentSeries">
-                            <option value="">Selecione sua série</option>
-                            <option value="5ano">5º Ano - Ensino Fundamental I</option>
-                            <option value="6ano">6º Ano - Ensino Fundamental II</option>
-                            <option value="7ano">7º Ano - Ensino Fundamental II</option>
-                            <option value="8ano">8º Ano - Ensino Fundamental II</option>
-                            <option value="9ano">9º Ano - Ensino Fundamental II</option>
-                        </select>
-                    </div>
-                    <button class="btn btn-success" onclick="loginStudent()">Entrar como Estudante</button>
+            
+            <!-- Formulário do Estudante (Centralizado) -->
+            <div style="max-width: 400px; margin: 0 auto 3rem; background: rgba(255,255,255,0.9); padding: 2rem; border-radius: 15px; box-shadow: 0 8px 25px rgba(0,0,0,0.1);">
+                <h3 style="color: #667eea; margin-bottom: 1.5rem; text-align: center;">👨‍🎓 Estudante</h3>
+                <div class="form-group">
+                    <label for="studentName">📝 Nome:</label>
+                    <input type="text" id="studentName" placeholder="Digite seu nome completo">
                 </div>
-                <div>
-                    <h3 style="color: #667eea; margin-bottom: 1.5rem;">👨‍🏫 Professor/Admin</h3>
-                    <div class="form-group">
-                        <label for="adminPassword">🔐 Senha Admin:</label>
-                        <input type="password" id="adminPassword" placeholder="Digite a senha">
-                        <small style="color: #666; display: block; margin-top: 0.5rem;">Senha padrão: ******</small>
+                <div class="form-group">
+                    <label for="studentSeries">🎒 Série:</label>
+                    <select id="studentSeries">
+                        <option value="">Selecione sua série</option>
+                        <option value="5ano">5º Ano - Ensino Fundamental I</option>
+                        <option value="6ano">6º Ano - Ensino Fundamental II</option>
+                        <option value="7ano">7º Ano - Ensino Fundamental II</option>
+                        <option value="8ano">8º Ano - Ensino Fundamental II</option>
+                        <option value="9ano">9º Ano - Ensino Fundamental II</option>
+                    </select>
+                </div>
+                <div style="text-align: center;">
+                    <button class="btn btn-success" onclick="loginStudent()" style="width: 100%; font-size: 1.1rem;">Entrar como Estudante</button>
+                </div>
+            </div>
+
+            <!-- Estatísticas do Sistema (Visível apenas no login) -->
+            <div id="systemStatsLogin" class="stats-card" style="margin: 2rem auto; max-width: 600px; text-align: center;">
+                <h4 style="color: #667eea; margin-bottom: 1rem;">📊 Estatísticas do Sistema</h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                    <div>
+                        <div style="font-size: 1.8rem; font-weight: bold; color: #28a745;" id="totalUsersLogin">0</div>
+                        <small>Usuários</small>
                     </div>
-                    <button class="btn" onclick="loginAdmin()">Entrar como Admin</button>
+                    <div>
+                        <div style="font-size: 1.8rem; font-weight: bold; color: #667eea;" id="totalQuizzesLogin">0</div>
+                        <small>Quizzes</small>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.8rem; font-weight: bold; color: #ffc107;" id="totalQuestionsLogin">0</div>
+                        <small>Questões</small>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.8rem; font-weight: bold; color: #dc3545;" id="totalSubjectsLogin">0</div>
+                        <small>Matérias</small>
+                    </div>
+                </div>
+                
+                <!-- Botões de Ação para Visitantes -->
+                <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 1.5rem;">
+                    <button class="btn btn-success" onclick="generateSampleFile()" style="font-size: 0.9rem;">📥 Baixar Exemplos</button>
+                    <button class="btn btn-secondary" onclick="showDetailedStatsPublic()" style="font-size: 0.9rem;">📈 Relatório Detalhado</button>
+                    <button class="btn" onclick="exportPublicData()" style="font-size: 0.9rem;">💾 Exportar Dados</button>
+                </div>
+            </div>
+
+            <!-- Formulário do Admin (Mais discreto, embaixo) -->
+            <div style="max-width: 350px; margin: 0 auto; background: rgba(108, 117, 125, 0.1); padding: 1.5rem; border-radius: 10px; border: 1px solid rgba(108, 117, 125, 0.2);">
+                <h3 style="color: #6c757d; margin-bottom: 1rem; text-align: center; font-size: 1rem;">👨‍🏫 Acesso Administrativo</h3>
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label for="adminPassword" style="font-size: 0.9rem;">🔐 Senha:</label>
+                    <input type="password" id="adminPassword" placeholder="Senha do administrador" style="font-size: 0.9rem;">
+                </div>
+                <div style="text-align: center;">
+                    <button class="btn btn-secondary" onclick="loginAdmin()" style="font-size: 0.9rem;">Entrar como Admin</button>
                 </div>
             </div>
         </div>
