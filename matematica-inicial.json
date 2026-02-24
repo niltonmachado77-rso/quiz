@@ -1,0 +1,163 @@
+{
+  "quiz": [
+    {
+      "materia": "matematica",
+      "serie": "5ano",
+      "questoes": [
+
+        {
+          "pergunta": "Mariazinha foi ao mercado com R$20,00 e comprou 10 maçãs que custam R$0,50 cada. Quanto ela gastou?",
+          "respostas": ["R$5,00", "R$10,00", "R$2,00", "R$15,00", "R$4,50", "R$0,50"],
+          "correta": 0,
+          "dificuldade": "easy"
+        },
+        {
+          "pergunta": "Se Mariazinha pagou com R$20,00 e gastou R$5,00, quanto foi o troco?",
+          "respostas": ["R$15,00", "R$10,00", "R$5,00", "R$25,00", "R$12,00", "R$8,00"],
+          "correta": 0,
+          "dificuldade": "easy"
+        },
+        {
+          "pergunta": "Quanto custam 20 maçãs a R$0,50 cada?",
+          "respostas": ["R$10,00", "R$5,00", "R$20,00", "R$15,00", "R$8,00", "R$2,00"],
+          "correta": 0,
+          "dificuldade": "medium"
+        },
+        {
+          "pergunta": "João tinha 48 figurinhas e dividiu igualmente entre 6 amigos. Quantas figurinhas cada um recebeu?",
+          "respostas": ["8", "6", "7", "9", "10", "12"],
+          "correta": 0,
+          "dificuldade": "hard"
+        }
+      ]
+    },
+
+    {
+      "materia": "matematica",
+      "serie": "6ano",
+      "questoes": [
+
+        {
+          "pergunta": "Quanto é 125 + 375?",
+          "respostas": ["500", "450", "525", "475", "550", "400"],
+          "correta": 0,
+          "dificuldade": "easy"
+        },
+        {
+          "pergunta": "Quanto é 900 - 275?",
+          "respostas": ["625", "675", "600", "650", "700", "575"],
+          "correta": 0,
+          "dificuldade": "easy"
+        },
+        {
+          "pergunta": "Quanto é 24 × 15?",
+          "respostas": ["360", "300", "340", "375", "380", "420"],
+          "correta": 0,
+          "dificuldade": "medium"
+        },
+        {
+          "pergunta": "Quanto é 144 ÷ 12?",
+          "respostas": ["12", "14", "10", "11", "13", "15"],
+          "correta": 0,
+          "dificuldade": "hard"
+        }
+      ]
+    },
+
+    {
+      "materia": "matematica",
+      "serie": "7ano",
+      "questoes": [
+
+        {
+          "pergunta": "Quanto é 2/3 de 90?",
+          "respostas": ["60", "30", "45", "70", "50", "65"],
+          "correta": 0,
+          "dificuldade": "easy"
+        },
+        {
+          "pergunta": "Quanto é 15% de 200?",
+          "respostas": ["30", "20", "25", "35", "40", "50"],
+          "correta": 0,
+          "dificuldade": "medium"
+        },
+        {
+          "pergunta": "Resolva: 3x = 27. Qual é o valor de x?",
+          "respostas": ["9", "8", "6", "7", "10", "12"],
+          "correta": 0,
+          "dificuldade": "medium"
+        },
+        {
+          "pergunta": "Um número elevado ao quadrado é 81. Qual é esse número positivo?",
+          "respostas": ["9", "8", "7", "6", "10", "12"],
+          "correta": 0,
+          "dificuldade": "hard"
+        }
+      ]
+    },
+
+    {
+      "materia": "matematica",
+      "serie": "8ano",
+      "questoes": [
+
+        {
+          "pergunta": "Quanto é (-5) + 12?",
+          "respostas": ["7", "-7", "17", "5", "-5", "12"],
+          "correta": 0,
+          "dificuldade": "easy"
+        },
+        {
+          "pergunta": "Resolva: 4x - 8 = 0. Qual é o valor de x?",
+          "respostas": ["2", "4", "1", "3", "0", "8"],
+          "correta": 0,
+          "dificuldade": "medium"
+        },
+        {
+          "pergunta": "Qual é a raiz quadrada de 121?",
+          "respostas": ["11", "10", "12", "9", "13", "14"],
+          "correta": 0,
+          "dificuldade": "medium"
+        },
+        {
+          "pergunta": "Resolva: 2x + 3 = 11. Qual é o valor de x?",
+          "respostas": ["4", "3", "5", "6", "2", "7"],
+          "correta": 0,
+          "dificuldade": "hard"
+        }
+      ]
+    },
+
+    {
+      "materia": "matematica",
+      "serie": "9ano",
+      "questoes": [
+
+        {
+          "pergunta": "Resolva: x² = 49. Qual é a raiz positiva?",
+          "respostas": ["7", "6", "8", "5", "9", "14"],
+          "correta": 0,
+          "dificuldade": "easy"
+        },
+        {
+          "pergunta": "Resolva: 5x - 10 = 0.",
+          "respostas": ["2", "5", "10", "0", "1", "3"],
+          "correta": 0,
+          "dificuldade": "medium"
+        },
+        {
+          "pergunta": "Quanto é 3² + 4²?",
+          "respostas": ["25", "7", "12", "20", "18", "16"],
+          "correta": 0,
+          "dificuldade": "medium"
+        },
+        {
+          "pergunta": "Resolva: x² - 9 = 0. Qual é a raiz positiva?",
+          "respostas": ["3", "9", "6", "12", "4", "8"],
+          "correta": 0,
+          "dificuldade": "hard"
+        }
+      ]
+    }
+  ]
+}
